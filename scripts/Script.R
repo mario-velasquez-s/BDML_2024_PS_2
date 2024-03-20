@@ -30,13 +30,18 @@ p_load(rio, # import/export data
 # 1: Initial Data Manipulation -----------------------------------------------
 
 
-## Uploading the data
-## Set Working directory
-## Ma Camila:
-setwd("C:/Users/Maria.Arias/OneDrive - Universidad de los andes/MSc Economics/Big Data & Machine Learning/Problem set 2")
-## Mario:
-## Martín:
-## Dani:
+username <- Sys.info()["user"]
+if (username == "Maria.Arias") {
+  setwd("C:/Users/Maria.Arias/OneDrive - Universidad de los andes/MSc Economics/Big Data & Machine Learning/Problem set 2")
+} else if (username == "marti") {
+  setwd("C:/Users/marti/OneDrive - Universidad de los andes/BDML - Datos")
+} else if (username == "") {
+  # Mario
+  setwd("/default/path/for/other/users")
+} else {
+  #Daniela
+  setwd("")
+}
 
 train_hogares <- read.csv("data/train_hogares.csv")
 train_personas <- read.csv("data/train_personas.csv")
@@ -273,6 +278,88 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
 ## 2.2: ElasticNet
 
 ## 2.3: CART - Logit
+
+train_control <- trainControl(
+  method = "cv",
+  number = 30,
+  classProbs = TRUE,
+  summaryFunction = defaultSummary,
+  savePredictions = TRUE
+)
+
+
+X1 <- c("nmenores", "arrienda")
+
+glm <- train(
+  formula(paste0("Pobre ~", paste0(X1, collapse = " + "))),
+  method = "glm",
+  data = train,
+  family = "binomial",
+  trControl = train_control
+)
+
+confusionMatrix(data = glm$pred$pred, 
+                reference = glm$pred$obs, 
+                positive="Yes", mode = "prec_recall")
+
+
+predicted_probabilities <- predict(glm, newdata = train, type = "prob")[, "Yes"]
+predict(glm, newdata = train, type = "prob")[, "Yes"]
+
+thresholds <- seq(0, 1, by = 0.01)
+f1_scores <- numeric(length(thresholds))
+max_f1 <- 0
+best_threshold <- 0
+
+for (i in seq_along(thresholds)) {
+  threshold <- thresholds[i]
+  print(threshold)
+  # Convert probabilities to binary predictions based on the threshold
+  binary_predictions <- ifelse(predicted_probabilities > threshold, "Yes", "No")
+  
+  # Compute confusion matrix
+  confusion <- table(binary_predictions, train$Pobre)
+  
+  # Check if confusion matrix is 2x2
+  if (ncol(confusion) != 2 || nrow(confusion) != 2) {
+    next  # Skip to the next threshold if the confusion matrix is not 2x2
+  }
+  
+  # Calculate precision, recall, and F1 score
+  precision <- confusion[2, 2] / sum(confusion[, 2])
+  recall <- confusion[2, 2] / sum(confusion[2, ])
+  f1_score <- 2 * precision * recall / (precision + recall)
+  
+  # Store the F1 score for this threshold
+  f1_scores[i] <- f1_score
+  
+  # Update max_f1 and best_threshold if current F1 score is higher
+  if (f1_score > max_f1) {
+    max_f1 <- f1_score
+    best_threshold <- threshold
+  }
+}
+
+# Print the best threshold and corresponding max F1 score
+cat("Best Threshold:", best_threshold, "\n")
+cat("Max F1 Score:", max_f1, "\n")
+
+# Create a data frame with threshold and F1 score data
+threshold_f1_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
+
+# Plot the relationship between threshold and F1 score
+ggplot(threshold_f1_data, aes(x = threshold, y = f1_score)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
+
+predictSample <- test   %>% 
+  mutate(pobre_lab = predict(model1, newdata = test, type = "raw")    ## predicted class labels
+  )  %>% select(id,pobre_lab)
+
+predictSample<- predictSample %>% 
+  mutate(pobre=ifelse(pobre_lab=="Yes",1,0)) %>% 
+  select(id,pobre)
 
 ## 2.4: CART - LDA
 

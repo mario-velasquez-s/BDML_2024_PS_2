@@ -168,9 +168,89 @@ train<- train_hogares %>%
 test<- test_hogares %>% 
   left_join(test_personas_hogar)
 
+train<- train %>% 
+  mutate(Dominio=factor(Dominio),
+         arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
+         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
+         H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
+         maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
+         H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
+         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes"))
+  )
+
+test<- test %>% 
+  mutate(Dominio=factor(Dominio),
+         arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
+         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
+         H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
+         maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
+         H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
+         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes"))
+  )
+
 #2: CLASSIFICATION APPROACH ----------------------------------------------------
 
 ## 2.1: Linear Regression
+set.seed(685397)
+
+colnames(train)
+
+## I will use k-fold validation to test my training models
+k <- 5
+nrow(train)/k
+
+## Generate an index for each fold
+train <-train  %>% mutate(fold=c(rep(1,32992),
+                              rep(2,32992),
+                              rep(3,32992),
+                              rep(4,32992),
+                              rep(5,32992)))
+
+## Models
+    
+    mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores +
+      H_Head_afiliadoSalud + H_Head_Educ_level
+    
+    mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
+    
+    mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
+      
+
+
+cv_mse <- function(base,fold_size,modelo,...){
+  l <- fold_size
+  
+  db_train <- list()
+  db_test <- list()
+  
+  for(i in 1:l){
+    db_train[[i]] <- base %>% filter(fold!=i) 
+    db_test[[i]] <- base %>% filter(fold==i)
+    
+    fit <-lm(modelo, data= db_train[[i]])
+    db_test[[i]] <- db_test[[i]] %>% mutate(Pobre_hat = ifelse(predict(fit, newdata=db_test[[i]]) >= 0.5, 1, 0))
+  }
+  
+  MSE <- list()
+  for(i in 1:l){
+    MSE[[i]] <- mean((db_test[[i]]$Pobre - db_test[[i]]$Pobre_hat)^2, na.rm=TRUE)
+  }
+  MSE<-do.call(rbind,MSE)
+  print(mean(MSE, na.rm = TRUE))
+}
+
+## I choose models minimizing MSE
+cv_mse(train,k,mod3)
+
+## Precicting and generating prediction file
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(predict(lm(mod2, train), newdata=test) >= 0.5, 1, 0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
+
 
 ## 2.2: ElasticNet
 

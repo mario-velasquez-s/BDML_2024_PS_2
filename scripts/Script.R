@@ -240,7 +240,7 @@ train <-train  %>% mutate(fold=c(rep(1,32992),
       
 
 
-cv_mse <- function(base,fold_size,modelo,...){
+cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   l <- fold_size
   
   db_train <- list()
@@ -251,7 +251,7 @@ cv_mse <- function(base,fold_size,modelo,...){
     db_test[[i]] <- base %>% filter(fold==i)
     
     fit <-lm(modelo, data= db_train[[i]])
-    db_test[[i]] <- db_test[[i]] %>% mutate(Pobre_hat = ifelse(predict(fit, newdata=db_test[[i]]) >= 0.5, 1, 0))
+    db_test[[i]] <- db_test[[i]] %>% mutate(Pobre_hat = ifelse(predict(fit, newdata=db_test[[i]]) >= c, 1, 0))
   }
   
   MSE <- list()
@@ -259,7 +259,7 @@ cv_mse <- function(base,fold_size,modelo,...){
     MSE[[i]] <- mean((db_test[[i]]$Pobre - db_test[[i]]$Pobre_hat)^2, na.rm=TRUE)
   }
   MSE<-do.call(rbind,MSE)
-  print(paste("MSE:",round(mean(MSE, na.rm = TRUE), digits=3)))
+  #print(paste("MSE:",round(mean(MSE, na.rm = TRUE), digits=3)))
   
   
   F1 <- list()
@@ -274,21 +274,59 @@ cv_mse <- function(base,fold_size,modelo,...){
     
     F1[[i]] <- 2 * precision * recall / (precision + recall)
   }
-    F1<-do.call(rbind,F1)
-    print(paste("F1:",round(mean(F1, na.rm = TRUE), digits=3)))
-       
+  F1<-do.call(rbind,F1)
+  #print(paste("F1:",round(mean(F1, na.rm = TRUE), digits=3)))
+ 
+  return(mean(F1, na.rm = TRUE))
       
 }
-
-
   
 
 ## I choose models minimizing MSE
-cv_mse(train,k,mod3)
+cv_mse_f1(train,k,mod3,0.5)
+
+
+## Choosing the best thresholds
+
+
+
+best_thresh_cv<- function(base,nfolds,model,...){
+  thresholds <- seq(0.25, 0.35, by = 0.005)
+  f1_scores <- numeric(length(thresholds))
+  max_f1 <- 0
+  best_threshold <- 0
+  for (i in seq_along(thresholds)) {
+    threshold <- thresholds[i]
+    
+    # Store the F1 score for this threshold
+    f1_scores[i] <- cv_mse_f1(base,nfolds,model,threshold)
+    
+    # Update max_f1 and best_threshold if current F1 score is higher
+    if (f1_scores[i] > max_f1) {
+      max_f1 <- f1_scores[i]
+      best_threshold <- threshold
+    }
+  }
+  
+  # Create a data frame with threshold and F1 score data
+  threshold_f1_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
+  
+  # Plot the relationship between threshold and F1 score
+  graph_thresh_f1 <- ggplot(threshold_f1_data, aes(x = threshold, y = f1_score)) +
+    geom_line() +
+    geom_point() +
+    labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
+  
+  print(paste("Best Threshold:",best_threshold))
+  print(paste("F1:",max_f1))
+  graph_thresh_f1
+}
+
+best_thresh_cv(train,k,mod1)
 
 ## Precicting and generating prediction file
     predictSample <- test %>%
-      mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.5, 1, 0)) %>%
+      mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.305, 1, 0)) %>%
       dplyr::select(id,pobre_lab)
     
     head(predictSample)

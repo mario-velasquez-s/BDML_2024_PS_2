@@ -24,7 +24,8 @@ p_load(rio, # import/export data
        visdat,
        caret,
        xtable,  # For predictive model assessment
-       fixest)  # Fixed effects 
+       fixest, 
+       zoo)  # Fixed effects 
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -89,6 +90,23 @@ summary(train_personas_AfiSaludmiss$edad) ## Conclusion: Those missing in afilia
 ## I can impute them with the values of their parents. I assume that if someone in the household has health security, the
 ## child must have.
 
+train_personas$afiliadoSalud <- ave(train_personas$afiliadoSalud, 
+                                    train_personas$id, FUN = function(x) {
+                                      if (all(is.na(x))) {
+                                        return(0)  # Asigna 0 si todos los valores son NA
+                                      } else {
+                                        return(ifelse(is.na(x), max(x, na.rm = TRUE), x))  # Calcula el máximo si hay valores no NA
+                                      }
+                                    })
+
+test_personas$afiliadoSalud <- ave(test_personas$afiliadoSalud, 
+                                    test_personas$id, FUN = function(x) {
+                                      if (all(is.na(x))) {
+                                        return(0)  # Asigna 0 si todos los valores son NA
+                                      } else {
+                                        return(ifelse(is.na(x), max(x, na.rm = TRUE), x))  # Calcula el máximo si hay valores no NA
+                                      }
+                                    })
 
 
 ## Imputation of EducLevel
@@ -208,8 +226,8 @@ train <-train  %>% mutate(fold=c(rep(1,32992),
 
 ## Models
     
-    mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores +
-      H_Head_afiliadoSalud + H_Head_Educ_level
+    mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
+      H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
     
     mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
     
@@ -240,11 +258,11 @@ cv_mse <- function(base,fold_size,modelo,...){
 }
 
 ## I choose models minimizing MSE
-cv_mse(train,k,mod3)
+cv_mse(train,k,mod1)
 
 ## Precicting and generating prediction file
 predictSample <- test %>%
-  mutate(pobre_lab = ifelse(predict(lm(mod2, train), newdata=test) >= 0.5, 1, 0)) %>%
+  mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.5, 1, 0)) %>%
   dplyr::select(id,pobre_lab)
 
 

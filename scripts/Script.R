@@ -259,20 +259,40 @@ cv_mse <- function(base,fold_size,modelo,...){
     MSE[[i]] <- mean((db_test[[i]]$Pobre - db_test[[i]]$Pobre_hat)^2, na.rm=TRUE)
   }
   MSE<-do.call(rbind,MSE)
-  print(mean(MSE, na.rm = TRUE))
+  print(paste("MSE:",round(mean(MSE, na.rm = TRUE), digits=3)))
+  
+  
+  F1 <- list()
+  for(i in 1:l){
+    TP <- sum(db_test[[i]]$Pobre == 1 & db_test[[i]]$Pobre_hat == 1 )
+    TN <- sum(db_test[[i]]$Pobre == 0 & db_test[[i]]$Pobre_hat == 0 )
+    FP <- sum(db_test[[i]]$Pobre == 0 & db_test[[i]]$Pobre_hat == 1 )
+    FN <- sum(db_test[[i]]$Pobre == 1 & db_test[[i]]$Pobre_hat == 0 )
+    
+    recall <- TP / (FN + TP)
+    precision <- TP / (TP + FP)
+    
+    F1[[i]] <- 2 * precision * recall / (precision + recall)
+  }
+    F1<-do.call(rbind,F1)
+    print(paste("F1:",round(mean(F1, na.rm = TRUE), digits=3)))
+       
+      
 }
 
+
+  
+
 ## I choose models minimizing MSE
-cv_mse(train,k,mod1)
+cv_mse(train,k,mod3)
 
 ## Precicting and generating prediction file
-predictSample <- test %>%
-  mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.5, 1, 0)) %>%
-  dplyr::select(id,pobre_lab)
-
-
-head(predictSample)
-write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
+    predictSample <- test %>%
+      mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.5, 1, 0)) %>%
+      dplyr::select(id,pobre_lab)
+    
+    head(predictSample)
+    write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
 
 
 ## 2.2: ElasticNet

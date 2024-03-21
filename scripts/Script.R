@@ -40,7 +40,7 @@ if (username == "Maria.Arias") {
   setwd("/default/path/for/other/users")
 } else {
   #Daniela
-  setwd("")
+  setwd("/Users/danielavlasak/Library/CloudStorage/OneDrive-UniversidaddelosAndes/ANDES/Semestre 8/BDML/Datos_PS2")
 }
 
 train_hogares <- read.csv("data/train_hogares.csv")
@@ -325,6 +325,7 @@ best_thresh_cv<- function(base,nfolds,model,...){
 
 best_thresh_cv(train,k,mod1)
 
+<<<<<<< Updated upstream
 ## Precicting and generating prediction file
     predictSample <- test %>%
       mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.305, 1, 0)) %>%
@@ -332,6 +333,16 @@ best_thresh_cv(train,k,mod1)
     
     head(predictSample)
     write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
+=======
+## Predicting and generating prediction file
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.5, 1, 0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
+>>>>>>> Stashed changes
 
 
 ## 2.2: ElasticNet
@@ -421,6 +432,36 @@ predictSample<- predictSample %>%
   select(id,pobre)
 
 ## 2.4: CART - LDA
+
+# Convert Pobre into a factor
+train$Pobre <- factor(train$Pobre)
+levels(train$Pobre) <- make.names(levels(train$Pobre))
+
+
+# Define train control
+ctrl <- trainControl(method = "cv",
+                     number = 10,
+                     classProbs = TRUE,
+                     savePredictions = TRUE,
+                     verbose = FALSE
+)
+
+# Perform LDA classification
+lda <- train(Pobre ~ nmenores + arrienda, 
+             data = train, 
+             method = "lda",
+             trControl = ctrl)
+
+# Make predictions using your trained model
+predictions <- predict(lda, newdata = test)
+
+
+# Compute confusion matrix
+conf_matrix <- confusionMatrix(predictions, test$Pobre)
+
+# Calculate F1 score
+f1_score <- as.numeric(conf_matrix$byClass['F1'])
+
 
 #3: INCOME REGRESSION APPROACH -------------------------------------------------
 

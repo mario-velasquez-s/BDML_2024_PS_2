@@ -456,10 +456,13 @@ calculate_f1_and_plot <- function(model, data) {
 mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
   H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
 
+mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
 
+mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
 
 ### Calculating the best models
 
+#Model 1. F1 is 0.5631557. Threshold is 0.29
 glm_1 <- train(
   formula(mod1),
   method = "glm",
@@ -468,25 +471,42 @@ glm_1 <- train(
   trControl = train_control
 )
 
-confusionMatrix(data = model$pred$pred, 
-                reference = model$pred$obs, 
-                positive="Yes", mode = "prec_recall")
 
+#Model 2. F1 is 0.5165361. Threshold is 0.26
+glm_2 <- train(
+  formula(mod2),
+  method = "glm",
+  data = train,
+  family = "binomial",
+  trControl = train_control
+)
+
+#Model 3. F1 is 0.4738163. Threshold is 0.25
+glm_3 <- train(
+  formula(mod3),
+  method = "glm",
+  data = train,
+  family = "binomial",
+  trControl = train_control
+)
+
+confusionMatrix(data = glm_2$pred$pred, 
+                reference = glm_2$pred$obs, 
+                positive="Yes", mode = "prec_recall")
 
 ### Applying the function
 
-calculate_f1_and_plot(glm, train)
+calculate_f1_and_plot(glm_1, train)
 
+calculate_f1_and_plot(glm_2, train)
+
+calculate_f1_and_plot(glm_3, train)
 
 ### Exporting predictions
 
-predictSample <- test   %>% 
-  mutate(pobre_lab = predict(model1, newdata = test, type = "raw")    ## predicted class labels
-  )  %>% select(id,pobre_lab)
-
-predictSample<- predictSample %>% 
-  mutate(pobre=ifelse(pobre_lab=="Yes",1,0)) %>% 
-  select(id,pobre)
+predictSample_glm_1 <- test %>%
+  mutate(pobre_lab = ifelse((predict(glm_1, newdata = test, type = "prob")) >= 0.29, 1, 0)) %>%
+  dplyr::select(id, pobre_lab)
 
 ## 2.4: CART - LDA
 

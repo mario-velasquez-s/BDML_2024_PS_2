@@ -25,7 +25,9 @@ p_load(rio, # import/export data
        caret,
        xtable,  # For predictive model assessment
        fixest, 
-       zoo)  # Fixed effects 
+       zoo,
+       smotefamily,
+       ROSE)  # Fixed effects 
 
 # 1: Initial Data Manipulation -----------------------------------------------
 

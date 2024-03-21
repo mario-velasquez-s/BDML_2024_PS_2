@@ -490,6 +490,19 @@ predictSample<- predictSample %>%
 
 ## 2.4: CART - LDA
 
+
+mod0 <- Pobre ~ nmenores + arrienda
+
+mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
+  H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
+
+mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
+
+mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
+mod4 <- Pobre ~ .
+
+
+
 # Convert Pobre into a factor
 train$Pobre <- factor(train$Pobre)
 levels(train$Pobre) <- make.names(levels(train$Pobre))
@@ -504,20 +517,20 @@ ctrl <- trainControl(method = "cv",
 )
 
 # Perform LDA classification
-lda <- train(Pobre ~ nmenores + arrienda, 
+lda <- train(mod0, 
              data = train, 
              method = "lda",
              trControl = ctrl)
 
-# Make predictions using your trained model
-predictions <- predict(lda, newdata = test)
 
+test<- test  %>% mutate(Pobre_hat_lda=predict(lda,newdata = test,
+                                                      type = "raw"))
 
-# Compute confusion matrix
-conf_matrix <- confusionMatrix(predictions, test$Pobre)
+test$Pobre_hat_lda<-factor(test$Pobre_hat_lda)
 
-# Calculate F1 score
-f1_score <- as.numeric(conf_matrix$byClass['F1'])
+confusionMatrix(data = lda$pred$pred, 
+                reference = lda$pred$obs, 
+                positive="Yes", mode = "prec_recall")
 
 
 #3: INCOME REGRESSION APPROACH -------------------------------------------------

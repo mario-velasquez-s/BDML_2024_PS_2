@@ -237,6 +237,7 @@ train <-train  %>% mutate(fold=c(rep(1,32992),
     mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
     
     mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
+    mod4 <- Pobre ~ .
       
 
 
@@ -259,7 +260,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
     MSE[[i]] <- mean((db_test[[i]]$Pobre - db_test[[i]]$Pobre_hat)^2, na.rm=TRUE)
   }
   MSE<-do.call(rbind,MSE)
-  #print(paste("MSE:",round(mean(MSE, na.rm = TRUE), digits=3)))
+  print(paste("MSE:",round(mean(MSE, na.rm = TRUE), digits=3)))
   
   
   F1 <- list()
@@ -275,7 +276,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
     F1[[i]] <- 2 * precision * recall / (precision + recall)
   }
   F1<-do.call(rbind,F1)
-  #print(paste("F1:",round(mean(F1, na.rm = TRUE), digits=3)))
+  print(paste("F1:",round(mean(F1, na.rm = TRUE), digits=3)))
  
   return(mean(F1, na.rm = TRUE))
       
@@ -283,7 +284,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   
 
 ## I choose models minimizing MSE
-cv_mse_f1(train,k,mod3,0.5)
+cv_mse_f1(train,k,mod4,0.5)
 
 
 ## Choosing the best thresholds

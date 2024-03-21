@@ -218,6 +218,7 @@ test<- test_hogares %>%
 
 train<- train %>% 
   mutate(Dominio=factor(Dominio),
+         Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
          arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
          H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
@@ -400,71 +401,84 @@ train_control <- trainControl(
   savePredictions = TRUE
 )
 
+calculate_f1_and_plot <- function(model, data) {
 
-X1 <- c("nmenores", "arrienda")
+  predicted_probabilities <- predict(model, newdata = data, type = "prob")[, "Yes"]
+  predict(model, newdata = data, type = "prob")[, "Yes"]
+  thresholds <- seq(0, 1, by = 0.01)
+  f1_scores <- numeric(length(thresholds))
+  max_f1 <- 0
+  best_threshold <- 0
+  for (i in seq_along(thresholds)) {
+    threshold <- thresholds[i]
+    print(threshold)
+    # Convert probabilities to binary predictions based on the threshold
+    binary_predictions <- ifelse(predicted_probabilities > threshold, "Yes", "No")
+    
+    # Compute confusion matrix
+    confusion <- table(binary_predictions, train$Pobre)
+    
+    # Check if confusion matrix is 2x2
+    if (ncol(confusion) != 2 || nrow(confusion) != 2) {
+      next  # Skip to the next threshold if the confusion matrix is not 2x2
+    }
+    
+    # Calculate precision, recall, and F1 score
+    precision <- confusion[2, 2] / sum(confusion[, 2])
+    recall <- confusion[2, 2] / sum(confusion[2, ])
+    f1_score <- 2 * precision * recall / (precision + recall)
+    
+    # Store the F1 score for this threshold
+    f1_scores[i] <- f1_score
+    
+    # Update max_f1 and best_threshold if current F1 score is higher
+    if (f1_score > max_f1) {
+      max_f1 <- f1_score
+      best_threshold <- threshold
+    }
+  }
+  # Print the best threshold and corresponding max F1 score
+  cat("Best Threshold:", best_threshold, "\n")
+  cat("Max F1 Score:", max_f1, "\n")
+  
+  # Create a data frame with threshold and F1 score data
+  threshold_f1_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
+  
+  # Plot the relationship between threshold and F1 score
+  ggplot(threshold_f1_data, aes(x = threshold, y = f1_score)) +
+    geom_line() +
+    geom_point() +
+    labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
+}
 
-glm <- train(
-  formula(paste0("Pobre ~", paste0(X1, collapse = " + "))),
+### Model List
+
+mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
+  H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
+
+
+
+### Calculating the best models
+
+glm_1 <- train(
+  formula(mod1),
   method = "glm",
   data = train,
   family = "binomial",
   trControl = train_control
 )
 
-confusionMatrix(data = glm$pred$pred, 
-                reference = glm$pred$obs, 
+confusionMatrix(data = model$pred$pred, 
+                reference = model$pred$obs, 
                 positive="Yes", mode = "prec_recall")
 
 
-predicted_probabilities <- predict(glm, newdata = train, type = "prob")[, "Yes"]
-predict(glm, newdata = train, type = "prob")[, "Yes"]
+### Applying the function
 
-thresholds <- seq(0, 1, by = 0.01)
-f1_scores <- numeric(length(thresholds))
-max_f1 <- 0
-best_threshold <- 0
+calculate_f1_and_plot(glm, train)
 
-for (i in seq_along(thresholds)) {
-  threshold <- thresholds[i]
-  print(threshold)
-  # Convert probabilities to binary predictions based on the threshold
-  binary_predictions <- ifelse(predicted_probabilities > threshold, "Yes", "No")
-  
-  # Compute confusion matrix
-  confusion <- table(binary_predictions, train$Pobre)
-  
-  # Check if confusion matrix is 2x2
-  if (ncol(confusion) != 2 || nrow(confusion) != 2) {
-    next  # Skip to the next threshold if the confusion matrix is not 2x2
-  }
-  
-  # Calculate precision, recall, and F1 score
-  precision <- confusion[2, 2] / sum(confusion[, 2])
-  recall <- confusion[2, 2] / sum(confusion[2, ])
-  f1_score <- 2 * precision * recall / (precision + recall)
-  
-  # Store the F1 score for this threshold
-  f1_scores[i] <- f1_score
-  
-  # Update max_f1 and best_threshold if current F1 score is higher
-  if (f1_score > max_f1) {
-    max_f1 <- f1_score
-    best_threshold <- threshold
-  }
-}
 
-# Print the best threshold and corresponding max F1 score
-cat("Best Threshold:", best_threshold, "\n")
-cat("Max F1 Score:", max_f1, "\n")
-
-# Create a data frame with threshold and F1 score data
-threshold_f1_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
-
-# Plot the relationship between threshold and F1 score
-ggplot(threshold_f1_data, aes(x = threshold, y = f1_score)) +
-  geom_line() +
-  geom_point() +
-  labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
+### Exporting predictions
 
 predictSample <- test   %>% 
   mutate(pobre_lab = predict(model1, newdata = test, type = "raw")    ## predicted class labels

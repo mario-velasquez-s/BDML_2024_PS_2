@@ -476,6 +476,7 @@ predictSample<- predictSample %>%
 
 ## 2.4: CART - LDA
 
+<<<<<<< Updated upstream
 mod0 <- Pobre ~ nmenores + arrienda
 
 mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
@@ -485,6 +486,11 @@ mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores +
 
 mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
 mod4 <- Pobre ~ .
+=======
+# Creation of F1 calculation
+A<- with(train,table(Pobre,Pobre_hat))
+
+>>>>>>> Stashed changes
 
 
 # Convert Pobre into a factor

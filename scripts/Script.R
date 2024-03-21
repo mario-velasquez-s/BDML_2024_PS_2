@@ -325,7 +325,7 @@ best_thresh_cv<- function(base,nfolds,model,...){
 
 best_thresh_cv(train,k,mod1)
 
-<<<<<<< Updated upstream
+
 ## Precicting and generating prediction file
     predictSample <- test %>%
       mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.305, 1, 0)) %>%
@@ -333,7 +333,7 @@ best_thresh_cv(train,k,mod1)
     
     head(predictSample)
     write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
-=======
+
 ## Predicting and generating prediction file
 predictSample <- test %>%
   mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.5, 1, 0)) %>%
@@ -342,7 +342,7 @@ predictSample <- test %>%
 
 head(predictSample)
 write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
->>>>>>> Stashed changes
+
 
 
 ## 2.2: ElasticNet

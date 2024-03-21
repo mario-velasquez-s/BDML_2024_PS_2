@@ -41,7 +41,6 @@ if (username == "Maria.Arias") {
   # Mario
   setwd("/default/path/for/other/users")
 } else {
-  #Daniela
   setwd("/Users/danielavlasak/Library/CloudStorage/OneDrive-UniversidaddelosAndes/ANDES/Semestre 8/BDML/Datos_PS2")
 }
 
@@ -65,8 +64,15 @@ pre_process_personas<-  function(data, ...) {
     ocupado = ifelse(is.na(Oc),0,1),
     afiliadoSalud = ifelse(P6090 == 9, NA, ifelse(P6090==2,0,P6090)),
     edad = P6040,
+    ciudad = as.factor(Dominio),
+    rural = ifelse(Clase == 2, 1, 0),
+    edad_trabajar = case_when(
+      P6040 >= 12 & Clase == 1 ~ 1,  #Cuando tiene 12 o más años y vive en cabecer
+      P6040 >= 10 & Clase == 2 ~ 1,  # Cuando tiene 10 o más años y vive en zona rural
+      TRUE ~ 0                        # Otherwise
+    )
   ) %>% 
-    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud, edad)
+    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud, edad, ciudad, rural, edad_trabajar)
   
   
 }
@@ -79,8 +85,6 @@ test_personas <- pre_process_personas(test_personas)
 
 train_miss <- skim(train_personas)
 print(train_miss) ## Missing values in EducLevel and afiliadoSalud
-
-
 
 ## Imputation of afiliadoSalud
 
@@ -136,23 +140,39 @@ impute_Educlevel <- function(data) {
 train_personas <- impute_Educlevel(train_personas)
 test_personas <- impute_Educlevel(test_personas)
 
+## Número de personas en el hogar
+
+train_personas <- train_personas %>%
+  group_by(id) %>%
+  mutate(total_personas = n()) %>%
+  ungroup()
+
+test_personas <- test_personas %>%
+  group_by(id) %>%
+  mutate(total_personas = n()) %>%
+  ungroup()
+
 ## Creation of variables at individual level
+
 train_personas_nivel_hogar<- train_personas %>% 
   group_by(id) %>% 
   summarize(nmujeres=sum(mujer,na.rm=TRUE),
             nmenores=sum(menor,na.rm=TRUE),
             maxEducLevel=max(EducLevel,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
-            noafiliados = sum(afiliadoSalud, na.rm=TRUE)
+            noafiliados = sum(afiliadoSalud, na.rm=TRUE),
+            total_personas = max(total_personas, na.rm = TRUE),
+            edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
   )
 
 train_personas_hogar<- train_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, total_personas, edad) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
-         H_Head_afiliadoSalud = afiliadoSalud) %>% 
+         H_Head_afiliadoSalud = afiliadoSalud,
+         H_Head_edad = edad) %>% 
   left_join(train_personas_nivel_hogar)
 
 test_personas_nivel_hogar<- test_personas %>% 
@@ -161,16 +181,19 @@ test_personas_nivel_hogar<- test_personas %>%
             nmenores=sum(menor,na.rm=TRUE),
             maxEducLevel=max(EducLevel,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
-            noafiliados = sum(afiliadoSalud, na.rm=TRUE)
+            noafiliados = sum(afiliadoSalud, na.rm=TRUE),
+            total_personas = max(total_personas, na.rm = TRUE),
+            edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
   )
 
 test_personas_hogar<- test_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, total_personas, edad) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
-         H_Head_afiliadoSalud = afiliadoSalud) %>% 
+         H_Head_afiliadoSalud = afiliadoSalud,
+         H_Head_edad = edad) %>% 
   left_join(test_personas_nivel_hogar)
 
 
@@ -200,7 +223,8 @@ train<- train %>%
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
-         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes"))
+         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
+         rural=factor(rural,levels=c(0,1),labels=c("No","Yes"))
   )
 
 test<- test %>% 
@@ -210,7 +234,24 @@ test<- test %>%
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
-         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes"))
+         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
+         rural=factor(rural,levels=c(0,1),labels=c("No","Yes"))
+  )
+
+## Variable creation
+
+train <- train %>%
+  mutate(
+    perc_mujer = (nmujeres / total_personas) * 100,
+    perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
+    perc_ocupados = (nocupados / total_personas) * 100
+  )
+
+test <- test %>%
+  mutate(
+    perc_mujer = (nmujeres / total_personas) * 100,
+    perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
+    perc_ocupados = (nocupados / total_personas) * 100
   )
 
 #2: CLASSIFICATION APPROACH ----------------------------------------------------

@@ -37,9 +37,8 @@ if (username == "Maria.Arias") {
   setwd("C:/Users/Maria.Arias/OneDrive - Universidad de los andes/MSc Economics/Big Data & Machine Learning/Problem set 2")
 } else if (username == "marti") {
   setwd("C:/Users/marti/OneDrive - Universidad de los andes/BDML - Datos")
-} else if (username == "") {
-  # Mario
-  setwd("/default/path/for/other/users")
+} else if (username == "mario") {
+  setwd("C:/Users/mario/Desktop/TODO/UNI ANDES/SEM 8 (2024-1)/Big Data y Machine Learning/Taller 2 - R")
 } else {
   setwd("/Users/danielavlasak/Library/CloudStorage/OneDrive-UniversidaddelosAndes/ANDES/Semestre 8/BDML/Datos_PS2")
 }
@@ -389,6 +388,68 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
 
 
 ## 2.2: ElasticNet
+
+# Installing needed packages
+
+set.seed(21032024)
+
+if (!requireNamespace("glmnet", quietly = TRUE)) {
+  install.packages("glmnet")
+}
+library(glmnet)
+
+## Models
+
+mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
+  H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
+
+mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
+
+mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
+mod4 <- Pobre ~ .
+
+### Eliminar missings
+
+# Sample rows for the training set
+train_index <- sample(1:nrow(train), 0.7 * nrow(train))
+
+# Create the training and test datasets
+train_net <- train[train_index, ]
+test_net <- train[-train_index, ]
+
+selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", "perc_edad_trabajar") 
+train_net <- train_net[, selected_variables, drop = FALSE]
+test_net <- test_net[, selected_variables, drop = FALSE]
+
+#train_net <- na.omit(train_net)
+
+
+# Fiting the Elastic Net model
+x_train <- as.matrix(train_net[, -ncol(train_net)])  
+y_train <- as.numeric(train_net$Pobre)
+
+# Perform Elastic Net regression
+alpha <- 0.5  # Elastic Net mixing parameter (0: Ridge, 1: Lasso)
+lambda <- 0.1  # Regularization parameter
+enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda, family = "binomial")
+
+# Predict on the testing dataset
+age_col_index <- which(names(test_net) == "Pobre")
+x_test <- as.matrix(test_net[, -age_col_index])
+probabilities <- predict(enet_model, newx = x_test, type = "response")
+
+# Assuming a threshold of 0.5 for classification
+predicted_classes <- ifelse(probabilities > 0.9, 1, 0)
+
+# Evaluate the model (e.g., accuracy, confusion matrix, etc.)
+actual_classes <- as.numeric(test_net$Pobre)
+confusion_matrix <- table(actual_classes, predicted_classes)
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+
+# Print the results
+print(confusion_matrix)
+print(paste("Accuracy:", accuracy))
+
 
 ## 2.3: CART - Logit
 

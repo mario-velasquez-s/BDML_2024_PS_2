@@ -439,17 +439,24 @@ age_col_index <- which(names(test_net) == "Pobre")
 x_test <- as.matrix(test_net[, -age_col_index])
 probabilities <- predict(enet_model, newx = x_test, type = "response")
 
-# Assuming a threshold of 0.5 for classification
+# Assuming a threshold of 0.9 for classification
 predicted_classes <- ifelse(probabilities > 0.9, 1, 0)
 
-# Evaluate the model (e.g., accuracy, confusion matrix, etc.)
+# Confusion matrix
 actual_classes <- as.numeric(test_net$Pobre)
 confusion_matrix <- table(actual_classes, predicted_classes)
 accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
 
-# Print the results
-print(confusion_matrix)
-print(paste("Accuracy:", accuracy))
+TP <- confusion_matrix[2, 2]
+FP <- confusion_matrix[1, 2]
+FN <- confusion_matrix[2, 1]
+
+# Calculating the F1 score
+precision <- TP / (TP + FP)
+recall <- TP / (TP + FN)
+F1_score <- 2 * (precision * recall) / (precision + recall)
+
+print(paste("F1 Score:", F1_score))
 
 
 ## 2.3: CART - Logit

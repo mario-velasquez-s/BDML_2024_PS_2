@@ -256,7 +256,7 @@ test <- test %>%
 
 #2: CLASSIFICATION APPROACH ----------------------------------------------------
 
-## 2.1: Linear Regression
+## 2.1: Linear Regression----------
 set.seed(685397)
 
 colnames(train)
@@ -388,78 +388,78 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
 
 
 
-## 2.2: ElasticNet
+## 2.2: ElasticNet-------
 
-# Installing needed packages
+  # Installing needed packages
+  
+  set.seed(21032024)
+  
+  if (!requireNamespace("glmnet", quietly = TRUE)) {
+    install.packages("glmnet")
+  }
+  library(glmnet)
+  
+  ## Models
+  
+  mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
+    H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
+  
+  mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
+  
+  mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
+  mod4 <- Pobre ~ .
+  
+  ### Eliminar missings
+  
+  # Sample rows for the training set
+  train_index <- sample(1:nrow(train), 0.7 * nrow(train))
+  
+  # Create the training and test datasets
+  train_net <- train[train_index, ]
+  test_net <- train[-train_index, ]
+  
+  selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", "perc_edad_trabajar") 
+  train_net <- train_net[, selected_variables, drop = FALSE]
+  test_net <- test_net[, selected_variables, drop = FALSE]
+  
+  #train_net <- na.omit(train_net)
+  
+  
+  # Fiting the Elastic Net model
+  x_train <- as.matrix(train_net[, -ncol(train_net)])  
+  y_train <- as.numeric(train_net$Pobre)
+  
+  # Perform Elastic Net regression
+  alpha <- 0.5  # Elastic Net mixing parameter (0: Ridge, 1: Lasso)
+  lambda <- 0.1  # Regularization parameter
+  enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda, family = "binomial")
+  
+  # Predict on the testing dataset
+  age_col_index <- which(names(test_net) == "Pobre")
+  x_test <- as.matrix(test_net[, -age_col_index])
+  probabilities <- predict(enet_model, newx = x_test, type = "response")
+  
+  # Assuming a threshold of 0.9 for classification
+  predicted_classes <- ifelse(probabilities > 0.9, 1, 0)
+  
+  # Confusion matrix
+  actual_classes <- as.numeric(test_net$Pobre)
+  confusion_matrix <- table(actual_classes, predicted_classes)
+  accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+  
+  TP <- confusion_matrix[2, 2]
+  FP <- confusion_matrix[1, 2]
+  FN <- confusion_matrix[2, 1]
+  
+  # Calculating the F1 score
+  precision <- TP / (TP + FP)
+  recall <- TP / (TP + FN)
+  F1_score <- 2 * (precision * recall) / (precision + recall)
+  
+  print(paste("F1 Score:", F1_score))
+  
 
-set.seed(21032024)
-
-if (!requireNamespace("glmnet", quietly = TRUE)) {
-  install.packages("glmnet")
-}
-library(glmnet)
-
-## Models
-
-mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
-  H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
-
-mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
-
-mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
-mod4 <- Pobre ~ .
-
-### Eliminar missings
-
-# Sample rows for the training set
-train_index <- sample(1:nrow(train), 0.7 * nrow(train))
-
-# Create the training and test datasets
-train_net <- train[train_index, ]
-test_net <- train[-train_index, ]
-
-selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", "perc_edad_trabajar") 
-train_net <- train_net[, selected_variables, drop = FALSE]
-test_net <- test_net[, selected_variables, drop = FALSE]
-
-#train_net <- na.omit(train_net)
-
-
-# Fiting the Elastic Net model
-x_train <- as.matrix(train_net[, -ncol(train_net)])  
-y_train <- as.numeric(train_net$Pobre)
-
-# Perform Elastic Net regression
-alpha <- 0.5  # Elastic Net mixing parameter (0: Ridge, 1: Lasso)
-lambda <- 0.1  # Regularization parameter
-enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda, family = "binomial")
-
-# Predict on the testing dataset
-age_col_index <- which(names(test_net) == "Pobre")
-x_test <- as.matrix(test_net[, -age_col_index])
-probabilities <- predict(enet_model, newx = x_test, type = "response")
-
-# Assuming a threshold of 0.9 for classification
-predicted_classes <- ifelse(probabilities > 0.9, 1, 0)
-
-# Confusion matrix
-actual_classes <- as.numeric(test_net$Pobre)
-confusion_matrix <- table(actual_classes, predicted_classes)
-accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
-
-TP <- confusion_matrix[2, 2]
-FP <- confusion_matrix[1, 2]
-FN <- confusion_matrix[2, 1]
-
-# Calculating the F1 score
-precision <- TP / (TP + FP)
-recall <- TP / (TP + FN)
-F1_score <- 2 * (precision * recall) / (precision + recall)
-
-print(paste("F1 Score:", F1_score))
-
-
-## 2.3: CART - Logit
+## 2.3: CART - Logit-------
 
 train_control <- trainControl(
   method = "cv",
@@ -582,7 +582,7 @@ predictSample_glm_1
 
 write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 
-## 2.4: CART - LDA
+## 2.4: CART - LDA and QDA----
 
 
 mod0 <- Pobre ~ nmenores + arrienda
@@ -624,6 +624,23 @@ test$Pobre_hat_lda<-factor(test$Pobre_hat_lda)
 
 confusionMatrix(data = lda$pred$pred, 
                 reference = lda$pred$obs, 
+                positive="Yes", mode = "prec_recall")
+
+
+# Perform QDA classification
+qda <- train(mod0, 
+             data = train, 
+             method = "qda",
+             trControl = ctrl)
+
+
+test<- test  %>% mutate(Pobre_hat_lda=predict(qda,newdata = test,
+                                              type = "raw"))
+
+test$Pobre_hat_qda<-factor(test$Pobre_hat_qda)
+
+confusionMatrix(data = qda$pred$pred, 
+                reference = qda$pred$obs, 
                 positive="Yes", mode = "prec_recall")
 
 

@@ -505,7 +505,7 @@ calculate_f1_and_plot(glm_3, train)
 ### Exporting predictions
 
 predictSample_glm_1 <- test %>%
-  mutate(pobre_lab = ifelse((predict(glm_1, newdata = test, type = "prob")) >= 0.29, 1, 0)) %>%
+  mutate(pobre_lab = ifelse(predict(glm_1, newdata = test, type = "response") >= 0.29, 1, 0)) %>%
   dplyr::select(id, pobre_lab)
 
 ## 2.4: CART - LDA

@@ -611,7 +611,7 @@ ctrl <- trainControl(method = "cv",
 )
 
 # Perform LDA classification
-lda <- train(mod0, 
+lda0 <- train(mod0, 
              data = train, 
              method = "lda",
              trControl = ctrl)
@@ -626,21 +626,43 @@ confusionMatrix(data = lda$pred$pred,
                 reference = lda$pred$obs, 
                 positive="Yes", mode = "prec_recall")
 
+calculate_f1_and_plot(lda0, train) # Best Threshold: 0.12 ; Max F1 Score: 0.4284724 
+
+lda1 <- train(mod1, 
+              data = train, 
+              method = "lda",
+              trControl = ctrl)
+
+
+test<- test  %>% mutate(Pobre_hat_lda1=predict(lda1,newdata = test,
+                                               type = "raw"))
+
+test$Pobre_hat_lda1<-factor(test$Pobre_hat_lda1)
+
+confusionMatrix(data = lda1$pred$pred, 
+                reference = lda1$pred$obs, 
+                positive="Yes", mode = "prec_recall")
+
+calculate_f1_and_plot(lda1, train) # Best Threshold: 0.26 ; Max F1 Score: 0.5605039 
+
+
+
+
 
 # Perform QDA classification
-qda <- train(mod0, 
+qda1 <- train(mod1, 
              data = train, 
              method = "qda",
              trControl = ctrl)
 
 
-test<- test  %>% mutate(Pobre_hat_lda=predict(qda,newdata = test,
+test<- test  %>% mutate(Pobre_hat_qda1=predict(qda1,newdata = test,
                                               type = "raw"))
 
-test$Pobre_hat_qda<-factor(test$Pobre_hat_qda)
+test$Pobre_hat_qda1<-factor(test$Pobre_hat_qda1)
 
-confusionMatrix(data = qda$pred$pred, 
-                reference = qda$pred$obs, 
+confusionMatrix(data = qda1$pred$pred, 
+                reference = qda1$pred$obs, 
                 positive="Yes", mode = "prec_recall")
 
 

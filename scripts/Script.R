@@ -505,8 +505,14 @@ calculate_f1_and_plot(glm_3, train)
 ### Exporting predictions
 
 predictSample_glm_1 <- test %>%
-  mutate(pobre_lab = ifelse(predict(glm_1, newdata = test, type = "response") >= 0.29, 1, 0)) %>%
-  dplyr::select(id, pobre_lab)
+  mutate(pobre_lab = predict(glm_1, newdata = test, type = "prob") %>%
+           `[[`("Yes")) %>%
+  dplyr::select(id,pobre_lab)
+predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.29, 1, 0)
+predictSample_glm_1 <- predictSample_glm_1[, c("id", "pobre")]
+predictSample_glm_1
+
+write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 
 ## 2.4: CART - LDA
 

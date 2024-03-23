@@ -418,9 +418,10 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
     train_net <- train_net[, selected_variables, drop = FALSE]
     test_net <- test_net[, selected_variables, drop = FALSE]
     
-    for (variable in names(test_net)) {
+    for (variable in names(train_net)) {
       if (is.factor(test_net[[variable]])) {
         test_net[[variable]] <- as.integer(test_net[[variable]])
+        train_net[[variable]] <- as.integer(train_net[[variable]])
       }
     }
     
@@ -457,14 +458,16 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
   
   selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", 
                           "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", 
-                          "perc_edad_trabajar")
+                          "perc_edad_trabajar", "arrienda", "H_Head_mujer", "H_Head_Educ_level",
+                          "H_Head_ocupado", "H_Head_afiliadoSalud", "rural", "H_Head_edad",
+                          "maxEducLevel")
   
   # Probamos la función
   elastic_net_f1(train, selected_variables, 0.9, 0.5, 0.1)
   
   # Creamos una función que itere sobre valores de lambda, alpha y el punto de corte
   
-  elastic_net_iter <- function(train, selected_variables){
+  elastic_net_iter <- function(train, selected_variables, n){
     alphas <- seq(0, 1, by = 0.025)
     cortes <- seq(0, 1, by = 0.025)
     lambdas <- seq(0, 5, by = 0.1)
@@ -480,7 +483,11 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
           alpha <- alphas[i]
           lambda <- lambdas[j]
           corte <- cortes[k]
-          F1_value <- elastic_net_f1(train, selected_variables, corte, lambda, alpha)
+          F1_value <- 0
+          for(m in 1:n) {
+            F1_value <- F1_value + elastic_net_f1(train, selected_variables, corte, lambda, alpha)
+          }
+          F1_value <- (F1_value/n)
           if (F1_value > f1_max) {
             f1_max <- F1_value
             alpha_opt <- alpha
@@ -498,7 +505,7 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
     print(paste("Corte: ", corte_opt))
   }
   
-  elastic_net_iter(train, selected_variables)
+  elastic_net_iter(train, selected_variables, 3)
   
   #Result: F1: 0.4099015 - alpha: 0.025 - lambda: 0.9 - corte: 0.825
   

@@ -27,7 +27,8 @@ p_load(rio, # import/export data
        fixest, 
        zoo,
        smotefamily,
-       ROSE)  # Fixed effects 
+       ROSE,
+       leaps)  # Fixed effects 
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -224,7 +225,8 @@ train<- train %>%
          maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
-         rural=factor(rural,levels=c(0,1),labels=c("No","Yes"))
+         rural=factor(rural,levels=c(0,1),labels=c("No","Yes")),
+         Dominio = factor(Dominio)
   )
 
 test<- test %>% 
@@ -235,7 +237,8 @@ test<- test %>%
          maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
-         rural=factor(rural,levels=c(0,1),labels=c("No","Yes"))
+         rural=factor(rural,levels=c(0,1),labels=c("No","Yes")),
+         Dominio = factor(Dominio)
   )
 
 ## Variable creation
@@ -244,14 +247,16 @@ train <- train %>%
   mutate(
     perc_mujer = (nmujeres / total_personas) * 100,
     perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
-    perc_ocupados = (nocupados / total_personas) * 100
+    perc_ocupados = (nocupados / total_personas) * 100,
+    perc_menores = (nmenores/total_personas) *100
   )
 
 test <- test %>%
   mutate(
     perc_mujer = (nmujeres / total_personas) * 100,
     perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
-    perc_ocupados = (nocupados / total_personas) * 100
+    perc_ocupados = (nocupados / total_personas) * 100,
+    perc_menores = (nmenores/total_personas) *100
   )
 
 #2: CLASSIFICATION APPROACH ----------------------------------------------------
@@ -463,7 +468,7 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
 
 train_control <- trainControl(
   method = "cv",
-  number = 30,
+  number = 10,
   classProbs = TRUE,
   summaryFunction = defaultSummary,
   savePredictions = TRUE
@@ -528,6 +533,14 @@ mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores +
 
 mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
 
+mod4 <- Pobre ~ Dominio + arrienda + H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + H_Head_afiliadoSalud + rural + total_personas + nmujeres + nmenores + perc_mujer + perc_ocupados + perc_mujer + perc_menores
+
+mod5 <- Pobre ~ Dominio * H_Head_Educ_level +
+  arrienda * rural +
+  H_Head_ocupado * H_Head_afiliadoSalud +
+  total_personas * nmujeres +
+  nmenores * perc_ocupados
+
 ### Calculating the best models
 
 #Model 1. F1 is 0.5631557. Threshold is 0.29
@@ -562,6 +575,24 @@ confusionMatrix(data = glm_2$pred$pred,
                 reference = glm_2$pred$obs, 
                 positive="Yes", mode = "prec_recall")
 
+#Model 4. F1 is  Threshold is 
+glm_4 <- train(
+  formula(mod4),
+  method = "glm",
+  data = train,
+  family = "binomial",
+  trControl = train_control
+)
+
+#Model 5. F1 is  Threshold is 
+glm_5 <- train(
+  formula(mod5),
+  method = "glm",
+  data = train,
+  family = "binomial",
+  trControl = train_control
+)
+
 ### Applying the function
 
 calculate_f1_and_plot(glm_1, train)
@@ -570,10 +601,14 @@ calculate_f1_and_plot(glm_2, train)
 
 calculate_f1_and_plot(glm_3, train)
 
+calculate_f1_and_plot(glm_4, train)
+
+calculate_f1_and_plot(glm_5, train)
+
 ### Exporting predictions
 
 predictSample_glm_1 <- test %>%
-  mutate(pobre_lab = predict(glm_1, newdata = test, type = "prob") %>%
+  mutate(pobre_lab = predict(glm_5, newdata = test, type = "prob") %>%
            `[[`("Yes")) %>%
   dplyr::select(id,pobre_lab)
 predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.29, 1, 0)
@@ -581,6 +616,22 @@ predictSample_glm_1 <- predictSample_glm_1[, c("id", "pobre")]
 predictSample_glm_1
 
 write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
+
+### Best subset selection
+
+model_form  <-  Pobre ~ arrienda + H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + rural + total_personas +
+  + H_Head_edad + perc_mujer + perc_edad_trabajar + perc_ocupados
+
+
+# Perform k-fold cross-validation
+
+
+best_fit <- regsubsets(model_form,
+                         data = train[folds != 1, ],
+                         nvmax = max_nvars, 
+                         method = "backward")  ## Using backward method
+
+summary(best_fit)
 
 ## 2.4: CART - LDA and QDA----
 

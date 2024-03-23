@@ -450,7 +450,9 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
     return(F1_score)
   }
   
-  selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", "perc_edad_trabajar")
+  selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", 
+                          "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", 
+                          "perc_edad_trabajar")
   
   # Probamos la función
   elastic_net_f1(train, selected_variables, 0.9, 0.5, 0.1)
@@ -484,10 +486,11 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
         }
       }
     }
-    print(f1_max)
-    print(alpha_opt)
-    print(lambda_opt)
-    print(corte_opt)
+    print("Optimal Values:")
+    print(paste("F1: ", f1_max))
+    print(paste("Alpha: ", alpha_opt))
+    print(paste("Lambda: ", lambda_opt))
+    print(paste("Corte: ", corte_opt))
   }
   
   elastic_net_iter(train, selected_variables)

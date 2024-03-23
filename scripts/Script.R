@@ -398,67 +398,145 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
     install.packages("glmnet")
   }
   library(glmnet)
-  
-  ## Models
-  
-  mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
-    H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
-  
-  mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
-  
-  mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
-  mod4 <- Pobre ~ .
-  
-  ### Eliminar missings
-  
-  # Sample rows for the training set
-  train_index <- sample(1:nrow(train), 0.7 * nrow(train))
-  
-  # Create the training and test datasets
-  train_net <- train[train_index, ]
-  test_net <- train[-train_index, ]
-  
-  selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", "perc_edad_trabajar") 
-  train_net <- train_net[, selected_variables, drop = FALSE]
-  test_net <- test_net[, selected_variables, drop = FALSE]
-  
-  #train_net <- na.omit(train_net)
-  
-  
-  # Fiting the Elastic Net model
-  x_train <- as.matrix(train_net[, -ncol(train_net)])  
-  y_train <- as.numeric(train_net$Pobre)
-  
-  # Perform Elastic Net regression
-  alpha <- 0.5  # Elastic Net mixing parameter (0: Ridge, 1: Lasso)
-  lambda <- 0.1  # Regularization parameter
-  enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda, family = "binomial")
-  
-  # Predict on the testing dataset
-  age_col_index <- which(names(test_net) == "Pobre")
-  x_test <- as.matrix(test_net[, -age_col_index])
-  probabilities <- predict(enet_model, newx = x_test, type = "response")
-  
-  # Assuming a threshold of 0.9 for classification
-  predicted_classes <- ifelse(probabilities > 0.9, 1, 0)
-  
-  # Confusion matrix
-  actual_classes <- as.numeric(test_net$Pobre)
-  confusion_matrix <- table(actual_classes, predicted_classes)
-  accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
-  
-  TP <- confusion_matrix[2, 2]
-  FP <- confusion_matrix[1, 2]
-  FN <- confusion_matrix[2, 1]
-  
-  # Calculating the F1 score
-  precision <- TP / (TP + FP)
-  recall <- TP / (TP + FN)
-  F1_score <- 2 * (precision * recall) / (precision + recall)
-  
-  print(paste("F1 Score:", F1_score))
-  
 
+# Función de Elastic Net
+
+  elastic_net_f1 <- function(train, selected_variables, corte, lambda, alpha) {
+    
+    # Sample rows for the training set
+    train_index <- sample(1:nrow(train), 0.7 * nrow(train))
+    
+    # Create the training and test datasets
+    train_net <- train[train_index, ]
+    test_net <- train[-train_index, ]
+     
+    train_net <- train_net[, selected_variables, drop = FALSE]
+    test_net <- test_net[, selected_variables, drop = FALSE]
+    
+    for (variable in names(test_net)) {
+      if (is.factor(test_net[[variable]])) {
+        test_net[[variable]] <- as.integer(test_net[[variable]])
+      }
+    }
+    
+    # Fiting the Elastic Net model
+    x_train <- as.matrix(train_net[, -ncol(train_net)])  
+    y_train <- as.numeric(train_net$Pobre)
+    
+    enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda, family = "binomial")
+    
+    # Predict on the testing dataset
+    age_col_index <- which(names(test_net) == "Pobre")
+    x_test <- as.matrix(test_net[, -age_col_index])
+    probabilities <- predict(enet_model, newx = x_test, type = "response")
+    
+    # Assuming a threshold of 0.9 for classification
+    predicted_classes <- ifelse(probabilities > corte, 1, 0)
+    
+    # Confusion matrix
+    actual_classes <- as.numeric(test_net$Pobre)
+    
+    precision <- sum(predicted_classes == 1 & actual_classes == 1) / sum(predicted_classes == 1)
+    recall <- sum(predicted_classes == 1 & actual_classes == 1) / sum(actual_classes == 1)
+    
+    
+    if (!is.na(precision) && !is.na(recall) && precision != 0 && recall != 0) {
+      F1_score <- 2 * (precision * recall) / (precision + recall)
+    } else {
+      F1_score <- 0
+    }
+    
+    #print(paste("F1 Score:", F1_score))
+    return(F1_score)
+  }
+  
+  selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", "perc_edad_trabajar")
+  
+  # Probamos la función
+  elastic_net_f1(train, selected_variables, 0.9, 0.5, 0.1)
+  
+  # Creamos una función que itere sobre valores de lambda, alpha y el punto de corte
+  
+  elastic_net_iter <- function(train, selected_variables){
+    alphas <- seq(0, 1, by = 0.025)
+    cortes <- seq(0, 1, by = 0.025)
+    lambdas <- seq(0, 5, by = 0.1)
+    f1_max = 0
+    alpha_opt <- 0
+    lambda_opt <- 0
+    corte_opt <- 0
+    f1_scores <- numeric(length(alphas)*length(lambdas)*length(cortes))
+    for (i in seq_along(alphas)){
+      for (j in seq_along(lambdas)){
+        for (k in seq_along(cortes)){
+          print(paste("i: ",i," - j: ",j," - k: ",k))
+          alpha <- alphas[i]
+          lambda <- lambdas[j]
+          corte <- cortes[k]
+          F1_value <- elastic_net_f1(train, selected_variables, corte, lambda, alpha)
+          if (F1_value > f1_max) {
+            f1_max <- F1_value
+            alpha_opt <- alpha
+            lambda_opt <- lambda
+            corte_opt <- corte
+          }
+          print(paste("F1 max: ", f1_max))
+        }
+      }
+    }
+    print(f1_max)
+    print(alpha_opt)
+    print(lambda_opt)
+    print(corte_opt)
+  }
+  
+  elastic_net_iter(train, selected_variables)
+  
+  #Result: F1: 0.4099015 - alpha: 0.025 - lambda: 0.9 - corte: 0.825
+  
+  elastic_net_f1(train, selected_variables, 0.825, 0.9, 0.025)
+  
+  elastic_net_iter_2 <- function(train, selected_variables, corte, lambda, alpha, n){
+    alphas <- seq(alpha-0.02, alpha+0.02, by = 0.0025)
+    cortes <- seq(corte-0.02, corte+0.02, by = 0.0025)
+    lambdas <- seq(lambda-0.05, lambda+0.05, by = 0.01)
+    f1_max = 0
+    alpha_opt <- 0
+    lambda_opt <- 0
+    corte_opt <- 0
+    f1_scores <- numeric(length(alphas)*length(lambdas)*length(cortes))
+    for (i in seq_along(alphas)){
+      for (j in seq_along(lambdas)){
+        for (k in seq_along(cortes)){
+          print(paste("i: ",i," - j: ",j," - k: ",k))
+          alpha <- alphas[i]
+          lambda <- lambdas[j]
+          corte <- cortes[k]
+          F1_value <- 0
+          for(m in 1:n) {
+            F1_value <- F1_value + elastic_net_f1(train, selected_variables, corte, lambda, alpha)
+          }
+          F1_value <- (F1_value/n)
+          if (F1_value > f1_max) {
+            f1_max <- F1_value
+            alpha_opt <- alpha
+            lambda_opt <- lambda
+            corte_opt <- corte
+          }
+          print(paste("F1 max: ", f1_max))
+        }
+      }
+    }
+    print("Optimal Values:")
+    print(paste("F1: ", f1_max))
+    print(paste("Alpha: ", alpha_opt))
+    print(paste("Lambda: ", lambda_opt))
+    print(paste("Corte: ", corte_opt))
+  }
+
+  
+  elastic_net_iter_2(train, selected_variables, 0.825, 0.9, 0.025, 5)
+  
 ## 2.3: CART - Logit-------
 
 train_control <- trainControl(

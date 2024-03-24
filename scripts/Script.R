@@ -28,7 +28,8 @@ p_load(rio, # import/export data
        zoo,
        smotefamily,
        ROSE,
-       leaps)  # Fixed effects 
+       leaps,
+       fastDummies)  # Fixed effects 
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -258,6 +259,15 @@ test <- test %>%
     perc_ocupados = (nocupados / total_personas) * 100,
     perc_menores = (nmenores/total_personas) *100
   )
+
+## Numeric 
+
+train_numeric <- train %>%
+  mutate_if(is.character, as.factor)  # Convert character columns to factors
+
+## ROSE
+
+rose_train <- ROSE(Pobre ~ ., data  = train_numeric)$data 
 
 #2: CLASSIFICATION APPROACH ----------------------------------------------------
 
@@ -566,7 +576,7 @@ calculate_f1_and_plot <- function(model, data) {
 
   predicted_probabilities <- predict(model, newdata = data, type = "prob")[, "Yes"]
   predict(model, newdata = data, type = "prob")[, "Yes"]
-  thresholds <- seq(0, 1, by = 0.01)
+  thresholds <- seq(0, 1, by = 0.001)
   f1_scores <- numeric(length(thresholds))
   max_f1 <- 0
   best_threshold <- 0
@@ -614,20 +624,38 @@ calculate_f1_and_plot <- function(model, data) {
 
 ### Model List
 
+#Uploades
 mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
   H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
 
-mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
-
-mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
-
-mod4 <- Pobre ~ Dominio + arrienda + H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + H_Head_afiliadoSalud + rural + total_personas + nmujeres + nmenores + perc_mujer + perc_ocupados + perc_mujer + perc_menores
-
-mod5 <- Pobre ~ Dominio * H_Head_Educ_level +
+#Uploaded
+mod2 <- Pobre ~ Dominio * H_Head_Educ_level +
   arrienda * rural +
   H_Head_ocupado * H_Head_afiliadoSalud +
   total_personas * nmujeres +
   nmenores * perc_ocupados
+
+mod3 <- Pobre ~ Dominio + arrienda + H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + 
+  H_Head_afiliadoSalud + rural + total_personas + nmujeres + nmenores + 
+  perc_mujer + perc_ocupados + perc_mujer + perc_menores^2
+
+mod4 <- Pobre ~ Dominio + arrienda + H_Head_mujer + 
+  H_Head_Educ_level + H_Head_ocupado + 
+  H_Head_afiliadoSalud + rural + total_personas + 
+  nmujeres + nmenores + poly(perc_mujer, 2) + poly(perc_ocupados, 2) + 
+  poly(perc_mujer, 2) + poly(perc_menores, 2) + poly(H_Head_edad, 2)
+
+mod5 <- Pobre ~ Dominio + arrienda + H_Head_mujer + 
+  H_Head_Educ_level*H_Head_mujer + H_Head_ocupado + 
+  H_Head_afiliadoSalud + rural*H_Head_mujer + total_personas + 
+  nmujeres + nmenores + poly(perc_mujer, 2) + poly(perc_ocupados, 2) + 
+  poly(perc_mujer, 2) + poly(perc_menores, 2) + poly(H_Head_edad, 2)*nmenores
+
+mod6 <- Pobre ~ Dominio + H_Head_mujer + 
+  H_Head_Educ_level*H_Head_mujer + H_Head_ocupado*H_Head_mujer + 
+  rural*H_Head_mujer + poly(perc_mujer, 2) + 
+  nmujeres + nmenores + poly(perc_mujer, 2) + poly(perc_ocupados, 2) + 
+  poly(perc_mujer, 2) + poly(perc_menores, 2) + poly(H_Head_edad, 2)*nmenores
 
 ### Calculating the best models
 
@@ -640,8 +668,7 @@ glm_1 <- train(
   trControl = train_control
 )
 
-
-#Model 2. F1 is 0.5165361. Threshold is 0.26
+#Model 2. F1 is  Threshold is 
 glm_2 <- train(
   formula(mod2),
   method = "glm",
@@ -650,7 +677,7 @@ glm_2 <- train(
   trControl = train_control
 )
 
-#Model 3. F1 is 0.4738163. Threshold is 0.25
+#Model 3. F1 is 0.5690068. Threshold is 0.282
 glm_3 <- train(
   formula(mod3),
   method = "glm",
@@ -659,11 +686,7 @@ glm_3 <- train(
   trControl = train_control
 )
 
-confusionMatrix(data = glm_2$pred$pred, 
-                reference = glm_2$pred$obs, 
-                positive="Yes", mode = "prec_recall")
-
-#Model 4. F1 is  Threshold is 
+#Model 4. F1 is 0.5762256. Threshold is 0.287
 glm_4 <- train(
   formula(mod4),
   method = "glm",
@@ -672,9 +695,18 @@ glm_4 <- train(
   trControl = train_control
 )
 
-#Model 5. F1 is  Threshold is 
+#Model 5. F1 is 0.5775019. Threshold is 0.296
 glm_5 <- train(
   formula(mod5),
+  method = "glm",
+  data = train,
+  family = "binomial",
+  trControl = train_control
+)
+
+#Model 6. F1 is . Threshold is 
+glm_6 <- train(
+  formula(mod6),
   method = "glm",
   data = train,
   family = "binomial",
@@ -693,13 +725,15 @@ calculate_f1_and_plot(glm_4, train)
 
 calculate_f1_and_plot(glm_5, train)
 
+calculate_f1_and_plot(glm_6, train)
+
 ### Exporting predictions
 
 predictSample_glm_1 <- test %>%
   mutate(pobre_lab = predict(glm_5, newdata = test, type = "prob") %>%
            `[[`("Yes")) %>%
   dplyr::select(id,pobre_lab)
-predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.29, 1, 0)
+predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.296, 1, 0)
 predictSample_glm_1 <- predictSample_glm_1[, c("id", "pobre")]
 predictSample_glm_1
 
@@ -707,11 +741,35 @@ write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 
 ### Best subset selection
 
-model_form  <-  Pobre ~ arrienda + H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + rural + total_personas +
-  + H_Head_edad + perc_mujer + perc_edad_trabajar + perc_ocupados
+interactions <- combn(c("Dominio", "arrienda", "H_Head_mujer", "H_Head_Educ_level", 
+                        "H_Head_ocupado", "H_Head_afiliadoSalud", "rural", 
+                        "total_personas", "nmujeres", "nmenores", "perc_mujer", 
+                        "perc_ocupados", "perc_mujer", "perc_menores"), 2, FUN = paste, collapse = "*")
 
+# Construct the formula with interactions
+model_form <- as.formula(paste("Pobre ~", paste(c("Dominio", "arrienda", "H_Head_mujer", 
+                                                           "H_Head_Educ_level", "H_Head_ocupado", 
+                                                           "H_Head_afiliadoSalud", "rural", 
+                                                           "total_personas", "nmujeres", "nmenores", 
+                                                           "perc_mujer", "perc_ocupados", 
+                                                           "perc_mujer", "perc_menores", interactions), collapse = " + ")))
 
 # Perform k-fold cross-validation
+
+bestsub_model <- regsubsets(model_form, ## formula
+                            data = train, ## data frame Note we are using the training sample.
+                            nvmax = 90,
+                            really.big = TRUE) ## show all the model groups lets define all the variables. 
+
+predict.regsubsets<- function (object , newdata , id, ...) {
+  form<- model_form
+  mat <- model.matrix (form , newdata) ## model matrix in the test data
+  coefi <- coef(object , id = id) ## coefficient for the best model with id vars
+  xvars <- names (coefi)  ## variables in the model
+  mat[, xvars] %*% coefi  ## prediction 
+  
+}
+
 
 
 best_fit <- regsubsets(model_form,
@@ -720,6 +778,17 @@ best_fit <- regsubsets(model_form,
                          method = "backward")  ## Using backward method
 
 summary(best_fit)
+
+                        
+glm_1_rose <- train(
+  formula(mod5),
+  method = "glm",
+  data = rose_train,
+  family = "binomial",
+  trControl = train_control
+)
+
+calculate_f1_and_plot(glm_1_rose, train)
 
 ## 2.4: CART - LDA and QDA----
 

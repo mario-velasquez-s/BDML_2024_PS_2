@@ -66,14 +66,13 @@ pre_process_personas<-  function(data, ...) {
     afiliadoSalud = ifelse(P6090 == 9, NA, ifelse(P6090==2,0,P6090)),
     edad = P6040,
     ciudad = as.factor(Dominio),
-    rural = ifelse(Clase == 2, 1, 0),
     edad_trabajar = case_when(
       P6040 >= 12 & Clase == 1 ~ 1,  #Cuando tiene 12 o más años y vive en cabecer
       P6040 >= 10 & Clase == 2 ~ 1,  # Cuando tiene 10 o más años y vive en zona rural
       TRUE ~ 0                        # Otherwise
     )
   ) %>% 
-    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud, edad, ciudad, rural, edad_trabajar)
+    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud, edad, ciudad, edad_trabajar)
   
   
 }
@@ -147,7 +146,6 @@ train_personas_nivel_hogar<- train_personas %>%
   group_by(id) %>% 
   summarize(nmujeres=sum(mujer,na.rm=TRUE),
             nmenores=sum(menor,na.rm=TRUE),
-            maxEducLevel=max(EducLevel,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
             edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
@@ -155,7 +153,7 @@ train_personas_nivel_hogar<- train_personas %>%
 
 train_personas_hogar<- train_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, edad) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, edad) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
@@ -167,7 +165,6 @@ test_personas_nivel_hogar<- test_personas %>%
   group_by(id) %>% 
   summarize(nmujeres=sum(mujer,na.rm=TRUE),
             nmenores=sum(menor,na.rm=TRUE),
-            maxEducLevel=max(EducLevel,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
             edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
@@ -175,7 +172,7 @@ test_personas_nivel_hogar<- test_personas %>%
 
 test_personas_hogar<- test_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, edad) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, edad) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
@@ -229,10 +226,8 @@ train<- train %>%
          sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
          H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
-         maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
-         rural=factor(rural,levels=c(0,1),labels=c("No","Yes")),
          Dominio = factor(Dominio)
   )
 
@@ -245,10 +240,8 @@ test<- test %>%
          sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
          H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
-         maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
-         rural=factor(rural,levels=c(0,1),labels=c("No","Yes")),
          Dominio = factor(Dominio)
   )
 
@@ -279,11 +272,6 @@ objects <- ls()
 objects_to_remove <- setdiff(objects, c("train", "test"))
 rm(list = objects_to_remove)
 
-## Numeric 
-
-train$Pobre <- as.integer(train$Pobre == "Yes")
-train <- train[, !(names(train) %in% "rural")] ##It is duplicated
-test <- test[, !(names(test) %in% "rural")] ##It is duplicated
 ## ROSE
 
 rose_train <- ROSE(Pobre ~ ., data  = train)$data 
@@ -585,7 +573,7 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
 
 train_control <- trainControl(
   method = "cv",
-  number = 10,
+  number = 30,
   classProbs = TRUE,
   summaryFunction = defaultSummary,
   savePredictions = TRUE
@@ -690,6 +678,15 @@ glm_3 <- train(
   trControl = train_control
 )
 
+#Model 4. F1 is  Threshold is 
+glm_4 <- train(
+  formula(model_form),
+  method = "glm",
+  data = train,
+  family = "binomial",
+  trControl = train_control
+)
+
 ### Applying the function
 
 calculate_f1_and_plot(glm_1, train)
@@ -698,13 +695,15 @@ calculate_f1_and_plot(glm_2, train)
 
 calculate_f1_and_plot(glm_3, train)
 
+calculate_f1_and_plot(glm_4, train)
+
 ### Exporting predictions
 
 predictSample_glm_1 <- test %>%
-  mutate(pobre_lab = predict(glm_3, newdata = test, type = "prob") %>%
+  mutate(pobre_lab = predict(glm_4, newdata = test, type = "prob") %>%
            `[[`("Yes")) %>%
   dplyr::select(id,pobre_lab)
-predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.296, 1, 0)
+predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.307, 1, 0)
 predictSample_glm_1 <- predictSample_glm_1[, c("id", "pobre")]
 predictSample_glm_1
 
@@ -713,17 +712,12 @@ write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 ### Best subset selection
 
 
-backward_model <- glm(Pobre ~ ., data = train)                                                   
-backward_model <- step(backward_model, direction = "backward")
-
-# Perform k-fold cross-validation
-
-model_form<-  Pobre ~ .
+train$Pobre <- as.integer(train$Pobre == "Yes")
+model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
 fordward_model <- regsubsets(model_form, ## formula
                              data = train, ## data frame Note we are using the training sample.
-                             nvmax = 58, ## show only the first 3  models models
-                             method = "forward" )  ## apply Forward Stepwise Selection
-
+                             nvmax = 118, ## show only the first 3  models models
+                             method = "backward" )  ## apply Forward Stepwise Selection
 
 max_nvars= fordward_model[["np"]]-1  ## minus one because it counts the intercept.
 max_nvars
@@ -737,23 +731,11 @@ predict.regsubsets<- function (object , newdata , id, ...) {
   
 }
 
-k <- 5
+k <- 10
 n <- nrow (train)
 folds <- sample (rep (1:k, length = n))
 cv.errors <- matrix (NA, k, max_nvars,
                      dimnames = list (NULL , paste (1:max_nvars)))
-
-best_fit <- regsubsets(model_form,
-                       data = train[folds != 2, ],
-                       nvmax = max_nvars, 
-                       method = "forward")  ## remember to use the method forward. 
-for (i in 1:max_nvars) {
-  pred <- predict(best_fit , train[folds == 2, ], id = i)
-  cv.errors[2, i] <-
-    mean ((train$Pobre[folds == 2] - pred)^2)
-}
-
-
 
 for (j in 1:k) {
   best_fit <- regsubsets(model_form,
@@ -767,6 +749,10 @@ for (j in 1:k) {
   }
 }
 
+mean.cv.errors <- apply (cv.errors , 2, mean)
+mean.cv.errors
+which.min (mean.cv.errors)
+plot (mean.cv.errors , type = "b")
 
 ## 2.4: CART - LDA and QDA----
 

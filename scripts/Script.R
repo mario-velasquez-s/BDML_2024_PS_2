@@ -141,18 +141,6 @@ impute_Educlevel <- function(data) {
 train_personas <- impute_Educlevel(train_personas)
 test_personas <- impute_Educlevel(test_personas)
 
-## Número de personas en el hogar
-
-train_personas <- train_personas %>%
-  group_by(id) %>%
-  mutate(total_personas = n()) %>%
-  ungroup()
-
-test_personas <- test_personas %>%
-  group_by(id) %>%
-  mutate(total_personas = n()) %>%
-  ungroup()
-
 ## Creation of variables at individual level
 
 train_personas_nivel_hogar<- train_personas %>% 
@@ -162,13 +150,12 @@ train_personas_nivel_hogar<- train_personas %>%
             maxEducLevel=max(EducLevel,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
-            total_personas = max(total_personas, na.rm = TRUE),
             edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
   )
 
 train_personas_hogar<- train_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, total_personas, edad) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, edad) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
@@ -183,13 +170,12 @@ test_personas_nivel_hogar<- test_personas %>%
             maxEducLevel=max(EducLevel,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
-            total_personas = max(total_personas, na.rm = TRUE),
             edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
   )
 
 test_personas_hogar<- test_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, total_personas, edad) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, rural, edad) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
@@ -201,13 +187,29 @@ test_personas_hogar<- test_personas %>%
 ## Household variables
 ## (POR AHORA DEJÉ LAS VARIABLES DE HOGAR QUE PUSO ANDRÉS PERO TENEMOS QUE ESCOGER MEJOR)
 train_hogares<- train_hogares %>% 
-  mutate(arrienda=ifelse(P5090==3,1,0)) %>% 
-  dplyr::select(id,Dominio,arrienda,Pobre)
+  mutate(arrienda=ifelse(P5090==3,1,0),
+         propia_pagada =ifelse(P5090==1,1,0),
+         propia_enpago =ifelse(P5090==2,1,0),
+         en_usufructo = ifelse(P5090==4,1,0),
+         sin_titulo = ifelse(P5090==5,1,0),
+         num_cuartos = P5000,
+         cuartos_usados = P5010,
+         total_personas = Nper
+         ) %>% 
+  dplyr::select(id,Dominio,arrienda,Pobre,propia_pagada,propia_enpago,en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas)
 
 
 test_hogares<- test_hogares %>% 
-  mutate(arrienda=ifelse(P5090==3,1,0)) %>% 
-  dplyr::select(id,Dominio,arrienda) 
+  mutate(arrienda=ifelse(P5090==3,1,0),
+          propia_pagada =ifelse(P5090==1,1,0),
+          propia_enpago =ifelse(P5090==2,1,0),
+          en_usufructo = ifelse(P5090==4,1,0),
+          sin_titulo = ifelse(P5090==5,1,0),
+          num_cuartos = P5000,
+          cuartos_usados = P5010,
+         total_personas = Nper
+      ) %>% 
+  dplyr::select(id,Dominio,arrienda,propia_pagada,propia_enpago, en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas) 
 
 ## Finally, Train & Test data
 train<- train_hogares %>% 
@@ -221,6 +223,10 @@ train<- train %>%
   mutate(Dominio=factor(Dominio),
          Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
          arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
+         propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
+         propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
+         en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
+         sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
          H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
@@ -233,6 +239,10 @@ train<- train %>%
 test<- test %>% 
   mutate(Dominio=factor(Dominio),
          arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
+         propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
+         propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
+         en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
+         sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
          H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          maxEducLevel=factor(maxEducLevel,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
@@ -249,7 +259,8 @@ train <- train %>%
     perc_mujer = (nmujeres / total_personas) * 100,
     perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
     perc_ocupados = (nocupados / total_personas) * 100,
-    perc_menores = (nmenores/total_personas) *100
+    perc_menores = (nmenores/total_personas) *100,
+    perc_uso_cuartos = (cuartos_usados/num_cuartos) *100
   )
 
 test <- test %>%
@@ -257,14 +268,22 @@ test <- test %>%
     perc_mujer = (nmujeres / total_personas) * 100,
     perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
     perc_ocupados = (nocupados / total_personas) * 100,
-    perc_menores = (nmenores/total_personas) *100
+    perc_menores = (nmenores/total_personas) *100,
+    perc_uso_cuartos = (cuartos_usados/num_cuartos) *100
   )
+
+##Remove all dfs
+
+objects <- ls()
+
+objects_to_remove <- setdiff(objects, c("train", "test"))
+rm(list = objects_to_remove)
 
 ## Numeric 
 
-train_numeric <- train %>%
-  mutate_if(is.character, as.factor)  # Convert character columns to factors
-
+train$Pobre <- as.integer(train$Pobre == "Yes")
+train <- train[, !(names(train) %in% "rural")] ##It is duplicated
+test <- test[, !(names(test) %in% "rural")] ##It is duplicated
 ## ROSE
 
 rose_train <- ROSE(Pobre ~ ., data  = train_numeric)$data 
@@ -624,7 +643,7 @@ calculate_f1_and_plot <- function(model, data) {
 
 ### Model List
 
-#Uploades
+#Uploaded
 mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
   H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
 
@@ -635,25 +654,10 @@ mod2 <- Pobre ~ Dominio * H_Head_Educ_level +
   total_personas * nmujeres +
   nmenores * perc_ocupados
 
-mod3 <- Pobre ~ Dominio + arrienda + H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + 
-  H_Head_afiliadoSalud + rural + total_personas + nmujeres + nmenores + 
-  perc_mujer + perc_ocupados + perc_mujer + perc_menores^2
-
-mod4 <- Pobre ~ Dominio + arrienda + H_Head_mujer + 
-  H_Head_Educ_level + H_Head_ocupado + 
-  H_Head_afiliadoSalud + rural + total_personas + 
-  nmujeres + nmenores + poly(perc_mujer, 2) + poly(perc_ocupados, 2) + 
-  poly(perc_mujer, 2) + poly(perc_menores, 2) + poly(H_Head_edad, 2)
-
-mod5 <- Pobre ~ Dominio + arrienda + H_Head_mujer + 
+#Uploaded
+mod3 <- Pobre ~ Dominio + arrienda + H_Head_mujer + 
   H_Head_Educ_level*H_Head_mujer + H_Head_ocupado + 
   H_Head_afiliadoSalud + rural*H_Head_mujer + total_personas + 
-  nmujeres + nmenores + poly(perc_mujer, 2) + poly(perc_ocupados, 2) + 
-  poly(perc_mujer, 2) + poly(perc_menores, 2) + poly(H_Head_edad, 2)*nmenores
-
-mod6 <- Pobre ~ Dominio + H_Head_mujer + 
-  H_Head_Educ_level*H_Head_mujer + H_Head_ocupado*H_Head_mujer + 
-  rural*H_Head_mujer + poly(perc_mujer, 2) + 
   nmujeres + nmenores + poly(perc_mujer, 2) + poly(perc_ocupados, 2) + 
   poly(perc_mujer, 2) + poly(perc_menores, 2) + poly(H_Head_edad, 2)*nmenores
 
@@ -677,36 +681,9 @@ glm_2 <- train(
   trControl = train_control
 )
 
-#Model 3. F1 is 0.5690068. Threshold is 0.282
+#Model 3. F1 is 0.5775019. Threshold is 0.296
 glm_3 <- train(
   formula(mod3),
-  method = "glm",
-  data = train,
-  family = "binomial",
-  trControl = train_control
-)
-
-#Model 4. F1 is 0.5762256. Threshold is 0.287
-glm_4 <- train(
-  formula(mod4),
-  method = "glm",
-  data = train,
-  family = "binomial",
-  trControl = train_control
-)
-
-#Model 5. F1 is 0.5775019. Threshold is 0.296
-glm_5 <- train(
-  formula(mod5),
-  method = "glm",
-  data = train,
-  family = "binomial",
-  trControl = train_control
-)
-
-#Model 6. F1 is . Threshold is 
-glm_6 <- train(
-  formula(mod6),
   method = "glm",
   data = train,
   family = "binomial",
@@ -721,16 +698,10 @@ calculate_f1_and_plot(glm_2, train)
 
 calculate_f1_and_plot(glm_3, train)
 
-calculate_f1_and_plot(glm_4, train)
-
-calculate_f1_and_plot(glm_5, train)
-
-calculate_f1_and_plot(glm_6, train)
-
 ### Exporting predictions
 
 predictSample_glm_1 <- test %>%
-  mutate(pobre_lab = predict(glm_5, newdata = test, type = "prob") %>%
+  mutate(pobre_lab = predict(glm_3, newdata = test, type = "prob") %>%
            `[[`("Yes")) %>%
   dplyr::select(id,pobre_lab)
 predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.296, 1, 0)
@@ -741,54 +712,48 @@ write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 
 ### Best subset selection
 
-interactions <- combn(c("Dominio", "arrienda", "H_Head_mujer", "H_Head_Educ_level", 
-                        "H_Head_ocupado", "H_Head_afiliadoSalud", "rural", 
-                        "total_personas", "nmujeres", "nmenores", "perc_mujer", 
-                        "perc_ocupados", "perc_mujer", "perc_menores"), 2, FUN = paste, collapse = "*")
 
-# Construct the formula with interactions
-model_form <- as.formula(paste("Pobre ~", paste(c("Dominio", "arrienda", "H_Head_mujer", 
-                                                           "H_Head_Educ_level", "H_Head_ocupado", 
-                                                           "H_Head_afiliadoSalud", "rural", 
-                                                           "total_personas", "nmujeres", "nmenores", 
-                                                           "perc_mujer", "perc_ocupados", 
-                                                           "perc_mujer", "perc_menores", interactions), collapse = " + ")))
+backward_model <- glm(Pobre ~ ., data = train)                                                   
+backward_model <- step(backward_model, direction = "backward")
 
 # Perform k-fold cross-validation
 
-bestsub_model <- regsubsets(model_form, ## formula
-                            data = train, ## data frame Note we are using the training sample.
-                            nvmax = 90,
-                            really.big = TRUE) ## show all the model groups lets define all the variables. 
+model_form<-  Pobre ~ .
+fordward_model <- regsubsets(model_form, ## formula
+                             data = train, ## data frame Note we are using the training sample.
+                             nvmax = 58, ## show only the first 3  models models
+                             method = "forward" )  ## apply Forward Stepwise Selection
+
+
+max_nvars= fordward_model[["np"]]-1  ## minus one because it counts the intercept.
+max_nvars
 
 predict.regsubsets<- function (object , newdata , id, ...) {
   form<- model_form
-  mat <- model.matrix (form , newdata) ## model matrix in the test data
+  mat <- model.matrix(form , newdata) ## model matrix in the test data
   coefi <- coef(object , id = id) ## coefficient for the best model with id vars
   xvars <- names (coefi)  ## variables in the model
   mat[, xvars] %*% coefi  ## prediction 
   
 }
 
-
-
-best_fit <- regsubsets(model_form,
-                         data = train[folds != 1, ],
+k <- 5
+n <- nrow (train)
+folds <- sample (rep (1:k, length = n))
+cv.errors <- matrix (NA, k, max_nvars,
+                     dimnames = list (NULL , paste (1:max_nvars)))
+for (j in 1:k) {
+  best_fit <- regsubsets(model_form,
+                         data = train[folds != j, ],
                          nvmax = max_nvars, 
-                         method = "backward")  ## Using backward method
+                         method = "forward")  ## remember to use the method forward. 
+  for (i in 1:max_nvars) {
+    pred <- predict(best_fit , train[folds == j, ], id = i)
+    cv.errors[j, i] <-
+      mean ((train$totalHoursWorked[folds == j] - pred)^2)
+  }
+}
 
-summary(best_fit)
-
-                        
-glm_1_rose <- train(
-  formula(mod5),
-  method = "glm",
-  data = rose_train,
-  family = "binomial",
-  trControl = train_control
-)
-
-calculate_f1_and_plot(glm_1_rose, train)
 
 ## 2.4: CART - LDA and QDA----
 

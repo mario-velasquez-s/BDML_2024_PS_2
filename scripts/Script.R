@@ -286,7 +286,7 @@ train <- train[, !(names(train) %in% "rural")] ##It is duplicated
 test <- test[, !(names(test) %in% "rural")] ##It is duplicated
 ## ROSE
 
-rose_train <- ROSE(Pobre ~ ., data  = train_numeric)$data 
+rose_train <- ROSE(Pobre ~ ., data  = train)$data 
 
 #2: CLASSIFICATION APPROACH ----------------------------------------------------
 
@@ -742,6 +742,19 @@ n <- nrow (train)
 folds <- sample (rep (1:k, length = n))
 cv.errors <- matrix (NA, k, max_nvars,
                      dimnames = list (NULL , paste (1:max_nvars)))
+
+best_fit <- regsubsets(model_form,
+                       data = train[folds != 2, ],
+                       nvmax = max_nvars, 
+                       method = "forward")  ## remember to use the method forward. 
+for (i in 1:max_nvars) {
+  pred <- predict(best_fit , train[folds == 2, ], id = i)
+  cv.errors[2, i] <-
+    mean ((train$Pobre[folds == 2] - pred)^2)
+}
+
+
+
 for (j in 1:k) {
   best_fit <- regsubsets(model_form,
                          data = train[folds != j, ],
@@ -750,7 +763,7 @@ for (j in 1:k) {
   for (i in 1:max_nvars) {
     pred <- predict(best_fit , train[folds == j, ], id = i)
     cv.errors[j, i] <-
-      mean ((train$totalHoursWorked[folds == j] - pred)^2)
+      mean ((train$Pobre[folds == j] - pred)^2)
   }
 }
 

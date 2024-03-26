@@ -413,6 +413,110 @@ write.csv(predictSample,"predictions/classification_linearRegression.csv", row.n
 ## 2.2: ElasticNet-------
 
   # Installing needed packages
+
+# Set seed for reproducibility
+set.seed(21032024)
+
+# Check and install glmnet package if not already installed
+if (!requireNamespace("glmnet", quietly = TRUE)) {
+  install.packages("glmnet")
+}
+library(glmnet)
+
+# Installing Packages 
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+if (!requireNamespace("caret", quietly = TRUE)) {
+  install.packages("caret")
+}
+
+# Load required libraries
+library(dplyr)
+library(ggplot2)
+library(caret)
+
+# Sample rows for the training set
+train_index <- sample(1:nrow(train), 0.7 * nrow(train))
+
+train_net$Pobre <- factor(train_net$Pobre, levels = c(0, 1))
+
+# Create the training and test datasets
+train_net <- train[train_index, ]
+test_net <- train[-train_index, ]
+
+train_net$Pobre <- factor(train_net$Pobre, levels = c(0, 1))
+test_net$Pobre <- factor(test_net$Pobre, levels = c(0, 1))
+
+# Select relevant variables (if selected_variables is defined)
+# train_net <- train_net[, selected_variables, drop = FALSE]
+# test_net <- test_net[, selected_variables, drop = FALSE]
+
+selected_variables <- c("Pobre", "total_personas", "nmujeres", "nmenores", "nocupados", 
+                        "noafiliados", "edad_trabajar", "perc_mujer", "perc_ocupados", 
+                        "perc_edad_trabajar", "arrienda", "H_Head_mujer", "H_Head_Educ_level",
+                        "H_Head_ocupado", "H_Head_afiliadoSalud", "rural", "H_Head_edad",
+                        "maxEducLevel")
+
+train_net <- train_net[, selected_variables, drop = FALSE]
+test_net <- test_net[, selected_variables, drop = FALSE]
+
+for (variable in names(train_net)) {
+  if (is.factor(test_net[[variable]])) {
+    test_net[[variable]] <- as.integer(test_net[[variable]])
+    train_net[[variable]] <- as.integer(train_net[[variable]])
+  }
+}
+
+# X and Y datasets 
+x_train <- as.matrix(train_net[, -ncol(train_net)])  
+y_train <- as.numeric(train_net$Pobre)
+
+# Model Building : Elastic Net Regression 
+control <- trainControl(method = "repeatedcv", 
+                        number = 5, 
+                        repeats = 5, 
+                        search = "random", 
+                        verboseIter = TRUE) 
+
+# Training Elastic Net Regression model 
+elastic_model <- train(Pobre ~ .,  
+                       data = cbind(x_train, y_train), 
+                       method = "glmnet", 
+                       preProcess = c("center", "scale"), 
+                       tuneLength = 25, 
+                       trControl = control) 
+
+# Model Prediction 
+x_hat_pre <- predict(elastic_model, y_train) 
+
+# Multiple R-squared 
+rsq <- cor(x_train, x_hat_pre)^2 
+
+# Plot 
+plot(elastic_model, main = "Elastic Net Regression") 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#############################################
   
   set.seed(21032024)
   

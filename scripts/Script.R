@@ -297,6 +297,19 @@ smote_output <- SMOTE(X = smote_subset_clean[predictors],
                       target = smote_subset_clean$Pobre)
 smote_data_train <- smote_output$data
 
+smote_data_train<- smote_data_train %>% 
+  mutate(arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
+         propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
+         propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
+         en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
+         sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
+         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
+         H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
+         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes"))
+  )
+smote_data_train <- na.omit(smote_data_train)
+smote_data_train$class <- make.names(smote_data_train$class)
+
 ## ROSE
 
 rose_train <- ROSE(Pobre ~ ., data  = train)$data 
@@ -618,22 +631,25 @@ train_control <- trainControl(
   savePredictions = TRUE
 )
 
-calculate_f1_and_plot <- function(model, data) {
-
-  predicted_probabilities <- predict(model, newdata = data, type = "prob")[, "Yes"]
-  predict(model, newdata = data, type = "prob")[, "Yes"]
+calculate_f1_and_plot <- function(model, data, class_variable = "Yes") {
+  predicted_probabilities <- predict(model, newdata = data, type = "prob")[, class_variable]
   thresholds <- seq(0, 1, by = 0.001)
   f1_scores <- numeric(length(thresholds))
   max_f1 <- 0
   best_threshold <- 0
+  
   for (i in seq_along(thresholds)) {
     threshold <- thresholds[i]
-    print(threshold)
+    
     # Convert probabilities to binary predictions based on the threshold
-    binary_predictions <- ifelse(predicted_probabilities > threshold, "Yes", "No")
+    binary_predictions <- ifelse(predicted_probabilities > threshold, class_variable, "No")
     
     # Compute confusion matrix
-    confusion <- table(binary_predictions, train$Pobre)
+    if (class_variable == "Yes") {
+      confusion <- table(binary_predictions, data$Pobre)
+    } else {
+      confusion <- table(binary_predictions, data$class)
+    }
     
     # Check if confusion matrix is 2x2
     if (ncol(confusion) != 2 || nrow(confusion) != 2) {
@@ -654,6 +670,7 @@ calculate_f1_and_plot <- function(model, data) {
       best_threshold <- threshold
     }
   }
+  
   # Print the best threshold and corresponding max F1 score
   cat("Best Threshold:", best_threshold, "\n")
   cat("Max F1 Score:", max_f1, "\n")
@@ -667,6 +684,8 @@ calculate_f1_and_plot <- function(model, data) {
     geom_point() +
     labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
 }
+
+
 
 ### Model List
 
@@ -726,6 +745,15 @@ glm_4 <- train(
   trControl = train_control
 )
 
+smote_spec <- class ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+glm_5 <- train(formula(smote_spec), 
+               data = smote_data_train, 
+               method = "glm",
+               trControl = train_control,
+               family = "binomial")
+
+glm_5
+
 ### Applying the function
 
 calculate_f1_and_plot(glm_1, train)
@@ -735,6 +763,8 @@ calculate_f1_and_plot(glm_2, train)
 calculate_f1_and_plot(glm_3, train)
 
 calculate_f1_and_plot(glm_4, train)
+
+calculate_f1_and_plot(glm_5, smote_data_train, class_variable = "X1")
 
 ### Exporting predictions
 

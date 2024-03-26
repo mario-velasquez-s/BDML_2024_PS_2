@@ -272,9 +272,48 @@ objects <- ls()
 objects_to_remove <- setdiff(objects, c("train", "test"))
 rm(list = objects_to_remove)
 
+## SMOTE
+
+
+smote_subset  <- train
+smote_subset <- smote_subset %>%
+  mutate(
+    Pobre = as.integer(train$Pobre == "Yes"),
+    arrienda = as.integer(train$arrienda == "Yes"),
+    propia_pagada = as.integer(train$propia_pagada == "Yes"),
+    propia_enpago = as.integer(train$propia_enpago == "Yes"),
+    en_usufructo = as.integer(train$en_usufructo == "Yes"),
+    sin_titulo = as.integer(train$sin_titulo == "Yes"),
+    H_Head_mujer = as.integer(train$H_Head_mujer == "Yes"),
+    H_Head_ocupado = as.integer(train$H_Head_ocupado == "Yes"),
+    H_Head_afiliadoSalud = as.integer(train$H_Head_afiliadoSalud == "Yes")
+  )
+smote_subset_clean <- smote_subset %>%
+  select_if(is.numeric)
+
+predictors <- colnames(smote_subset_clean)[-which(colnames(smote_subset_clean) == "Pobre")]
+head( smote_subset_clean[predictors])
+smote_output <- SMOTE(X = smote_subset_clean[predictors],
+                      target = smote_subset_clean$Pobre)
+smote_data_train <- smote_output$data
+
 ## ROSE
 
 rose_train <- ROSE(Pobre ~ ., data  = train)$data 
+
+## UPSAMPLING
+
+upSampledTrain <- upSample(x = train,
+                           y = train$Pobre,
+                           ## keep the class variable name the same:
+                           yname = "Pobre")
+
+## DOWNSAMPLING
+
+downSampledTrain <- downSample(x = train,
+                               y = train$Pobre,
+                               ## keep the class variable name the same:
+                               yname = "Pobre")
 
 #2: CLASSIFICATION APPROACH ----------------------------------------------------
 
@@ -711,8 +750,6 @@ write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 
 ### Best subset selection
 
-
-train$Pobre <- as.integer(train$Pobre == "Yes")
 model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
 fordward_model <- regsubsets(model_form, ## formula
                              data = train, ## data frame Note we are using the training sample.

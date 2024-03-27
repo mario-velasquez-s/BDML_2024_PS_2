@@ -182,7 +182,6 @@ test_personas_hogar<- test_personas %>%
 
 
 ## Household variables
-## (POR AHORA DEJÉ LAS VARIABLES DE HOGAR QUE PUSO ANDRÉS PERO TENEMOS QUE ESCOGER MEJOR)
 train_hogares<- train_hogares %>% 
   mutate(arrienda=ifelse(P5090==3,1,0),
          propia_pagada =ifelse(P5090==1,1,0),
@@ -218,7 +217,7 @@ test<- test_hogares %>%
 
 train<- train %>% 
   mutate(Dominio=factor(Dominio),
-         Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
+         #Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
          arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
          propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
@@ -278,7 +277,7 @@ rm(list = objects_to_remove)
 smote_subset  <- train
 smote_subset <- smote_subset %>%
   mutate(
-    Pobre = as.integer(train$Pobre == "Yes"),
+    #Pobre = as.integer(train$Pobre == "Yes"),
     arrienda = as.integer(train$arrienda == "Yes"),
     propia_pagada = as.integer(train$propia_pagada == "Yes"),
     propia_enpago = as.integer(train$propia_enpago == "Yes"),
@@ -309,6 +308,7 @@ smote_data_train<- smote_data_train %>%
   )
 smote_data_train <- na.omit(smote_data_train)
 smote_data_train$class <- make.names(smote_data_train$class)
+#smote_data_train$class <- smote_data_train %>% mutate(Pobre = ifelse(class == "X1", 0,1))
 
 ## ROSE
 
@@ -337,7 +337,7 @@ colnames(train)
 
 ## I will use k-fold validation to test my training models
 k <- 5
-nrow(train)/k
+nrow(train)/k ## Each fold must have 32992 obs
 
 ## Generate an index for each fold
 train <-train  %>% mutate(fold=c(rep(1,32992),
@@ -353,8 +353,15 @@ train <-train  %>% mutate(fold=c(rep(1,32992),
     
     mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores + H_Head_Educ_level
     
-    mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
-    mod4 <- Pobre ~ .
+    mod3 <- Pobre ~ Dominio* H_Head_mujer + arrienda + propia_pagada + propia_enpago + en_usufructo + sin_titulo*H_Head_mujer +
+      num_cuartos + cuartos_usados + total_personas + H_Head_Educ_level* H_Head_mujer + H_Head_ocupado* H_Head_mujer + 
+      H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores* H_Head_mujer + nocupados + noafiliados + edad_trabajar +
+      perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
+    
+    mod4 <- Pobre ~ Dominio + arrienda + propia_pagada + propia_enpago + en_usufructo + sin_titulo +
+      num_cuartos + cuartos_usados + total_personas + H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + 
+      H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores + nocupados + noafiliados + edad_trabajar +
+      perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
       
 
 
@@ -377,7 +384,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
     MSE[[i]] <- mean((db_test[[i]]$Pobre - db_test[[i]]$Pobre_hat)^2, na.rm=TRUE)
   }
   MSE<-do.call(rbind,MSE)
-  print(paste("MSE:",round(mean(MSE, na.rm = TRUE), digits=3)))
+  #print(paste("MSE:",round(mean(MSE, na.rm = TRUE), digits=3)))
   
   
   F1 <- list()
@@ -393,7 +400,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
     F1[[i]] <- 2 * precision * recall / (precision + recall)
   }
   F1<-do.call(rbind,F1)
-  print(paste("F1:",round(mean(F1, na.rm = TRUE), digits=3)))
+  #print(paste("F1:",round(mean(F1, na.rm = TRUE), digits=3)))
  
   return(mean(F1, na.rm = TRUE))
       
@@ -401,7 +408,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   
 
 ## I choose models minimizing MSE
-cv_mse_f1(train,k,mod4,0.5)
+cv_mse_f1(train,k,mod3,0.5)
 
 
 ## Choosing the best thresholds
@@ -409,7 +416,7 @@ cv_mse_f1(train,k,mod4,0.5)
 
 
 best_thresh_cv<- function(base,nfolds,model,...){
-  thresholds <- seq(0.25, 0.35, by = 0.005)
+  thresholds <- seq(0.3, 0.4, by = 0.01)
   f1_scores <- numeric(length(thresholds))
   max_f1 <- 0
   best_threshold <- 0
@@ -440,25 +447,17 @@ best_thresh_cv<- function(base,nfolds,model,...){
   graph_thresh_f1
 }
 
-best_thresh_cv(train,k,mod1)
+best_thresh_cv(train,k,mod3)
 
 
 ## Precicting and generating prediction file
     predictSample <- test %>%
-      mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.305, 1, 0)) %>%
+      mutate(pobre_lab = ifelse(predict(lm(mod3, train), newdata=test) >= 0.33, 1, 0)) %>%
       dplyr::select(id,pobre_lab)
     
     head(predictSample)
     write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
 
-## Predicting and generating prediction file
-predictSample <- test %>%
-  mutate(pobre_lab = ifelse(predict(lm(mod1, train), newdata=test) >= 0.5, 1, 0)) %>%
-  dplyr::select(id,pobre_lab)
-
-
-head(predictSample)
-write.csv(predictSample,"predictions/classification_linearRegression.csv", row.names = FALSE)
 
 
 

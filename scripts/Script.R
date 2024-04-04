@@ -278,6 +278,7 @@ smote_subset  <- train
 smote_subset <- smote_subset %>%
   mutate(
     #Pobre = as.integer(train$Pobre == "Yes"),
+    Dominio = as.integer(train$Dominio == "Yes"),
     arrienda = as.integer(train$arrienda == "Yes"),
     propia_pagada = as.integer(train$propia_pagada == "Yes"),
     propia_enpago = as.integer(train$propia_enpago == "Yes"),
@@ -300,7 +301,8 @@ prop.table(table(train$Pobre))
 prop.table(table(smote_data_train$class))
 
 smote_data_train<- smote_data_train %>% 
-  mutate(arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
+  mutate(Dominio=factor(Dominio,levels=c(0,1),labels=c("No","Yes")),
+        arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
          propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
          en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
@@ -311,6 +313,8 @@ smote_data_train<- smote_data_train %>%
   )
 smote_data_train <- na.omit(smote_data_train) ## Acá perdemos todo el SMOTE
 smote_data_train <- smote_data_train %>% rename(Pobre = class)
+smote_data_train <- smote_data_train %>%
+  mutate(Pobre = as.numeric(smote_data_train$Pobre))
 #smote_data_train$class <- smote_data_train %>% mutate(Pobre = ifelse(class == "X1", 0,1))
 
 ## ROSE
@@ -341,6 +345,7 @@ colnames(train)
 ## I will use k-fold validation to test my training models
 k <- 5
 nrow(train)/k ## Each fold must have 32992 obs
+nrow(smote_data_train)/k ##3 folds must have 36539 obs and two 36538
 
 ## Generate an index for each fold
 train <-train  %>% mutate(fold=c(rep(1,32992),
@@ -348,6 +353,12 @@ train <-train  %>% mutate(fold=c(rep(1,32992),
                               rep(3,32992),
                               rep(4,32992),
                               rep(5,32992)))
+
+smote_data_train <-smote_data_train  %>% mutate(fold=c(rep(1,36539),
+                                 rep(2,36539),
+                                 rep(3,36539),
+                                 rep(4,36538),
+                                 rep(5,36538)))
 
 ## Models
     
@@ -366,7 +377,10 @@ train <-train  %>% mutate(fold=c(rep(1,32992),
       H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores + nocupados + noafiliados + edad_trabajar +
       perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
       
-
+    mod5 <- Pobre ~ arrienda + propia_pagada + propia_enpago + en_usufructo + sin_titulo*H_Head_mujer +
+      num_cuartos + cuartos_usados + total_personas +  H_Head_ocupado* H_Head_mujer + 
+      H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores* H_Head_mujer + nocupados + noafiliados + edad_trabajar +
+      perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
 
 cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   l <- fold_size
@@ -411,7 +425,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   
 
 ## I choose models minimizing MSE
-cv_mse_f1(train,k,mod3,0.5)
+cv_mse_f1(train,k,mod5,0.5)
 
 
 ## Choosing the best thresholds

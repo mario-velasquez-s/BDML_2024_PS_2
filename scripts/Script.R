@@ -278,7 +278,7 @@ smote_subset  <- train
 smote_subset <- smote_subset %>%
   mutate(
     #Pobre = as.integer(train$Pobre == "Yes"),
-    Dominio = as.integer(train$Dominio == "Yes"),
+    Dominio = as.integer(train$Dominio),
     arrienda = as.integer(train$arrienda == "Yes"),
     propia_pagada = as.integer(train$propia_pagada == "Yes"),
     propia_enpago = as.integer(train$propia_enpago == "Yes"),
@@ -296,22 +296,23 @@ head( smote_subset_clean[predictors])
 smote_output <- SMOTE(X = smote_subset_clean[predictors],
                       target = smote_subset_clean$Pobre)
 smote_data_train <- smote_output$data
-
+skim(smote_data_train)
 prop.table(table(train$Pobre))
 prop.table(table(smote_data_train$class))
 
 smote_data_train<- smote_data_train %>% 
-  mutate(Dominio=factor(Dominio,levels=c(0,1),labels=c("No","Yes")),
-        arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
-         propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
-         propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
-         en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
-         sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
-         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
-         H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
-         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes"))
+  mutate(Dominio=factor(Dominio),
+        arrienda=factor(arrienda),
+         propia_pagada = factor(propia_pagada),
+         propia_enpago = factor(propia_enpago),
+         en_usufructo = factor(en_usufructo),
+         sin_titulo = factor(sin_titulo),
+         H_Head_mujer = factor(H_Head_mujer),
+         H_Head_ocupado = factor(H_Head_ocupado),
+         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud)
   )
-smote_data_train <- na.omit(smote_data_train) ## Acá perdemos todo el SMOTE
+skim(smote_data_train)
+
 smote_data_train <- smote_data_train %>% rename(Pobre = class)
 smote_data_train <- smote_data_train %>%
   mutate(Pobre = as.numeric(smote_data_train$Pobre))

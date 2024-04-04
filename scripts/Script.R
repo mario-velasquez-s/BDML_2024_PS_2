@@ -296,6 +296,9 @@ smote_output <- SMOTE(X = smote_subset_clean[predictors],
                       target = smote_subset_clean$Pobre)
 smote_data_train <- smote_output$data
 
+prop.table(table(train$Pobre))
+prop.table(table(smote_data_train$class))
+
 smote_data_train<- smote_data_train %>% 
   mutate(arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
          propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
@@ -306,8 +309,8 @@ smote_data_train<- smote_data_train %>%
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes"))
   )
-smote_data_train <- na.omit(smote_data_train)
-smote_data_train$class <- make.names(smote_data_train$class)
+smote_data_train <- na.omit(smote_data_train) ## Acá perdemos todo el SMOTE
+smote_data_train <- smote_data_train %>% rename(Pobre = class)
 #smote_data_train$class <- smote_data_train %>% mutate(Pobre = ifelse(class == "X1", 0,1))
 
 ## ROSE

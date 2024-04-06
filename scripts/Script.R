@@ -93,10 +93,12 @@ train_personas_AfiSaludmiss <- train_personas %>%
   mutate(AfiSalud_miss = ifelse(is.na(afiliadoSalud) == TRUE,1,0)) %>% 
   dplyr::filter(AfiSalud_miss == 1)
 
-ggplot(train_personas_AfiSaludmiss, aes(x=edad))+
+afiliado_missing <- ggplot(train_personas_AfiSaludmiss, aes(x=edad))+
   geom_histogram(fill="#0099F8") +
-  labs(x="Edad") + 
+  labs(x="Edad", y = "Cuenta") + 
   theme_bw()
+
+ggsave("./views/afiliado_missing.pdf", plot = afiliado_missing)
 
 summary(train_personas_AfiSaludmiss$edad) ## Conclusion: Those missing in afiliacionSalud are children and someone with 84 years. 
 ## I can impute them with the values of their parents. I assume that if someone in the household has health security, the
@@ -348,10 +350,13 @@ train_pobre_numeric <- train_pobre_numeric %>%
   mutate(
     Pobre = as.integer(train$Pobre == "Yes"))
 
-model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2 + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + 
+                                                                                                                                                                                                                                    H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + 
+                                                                                                                                                                                                                                    perc_ocupados + perc_menores + perc_uso_cuartos)^3
+
+
 backward_model <- regsubsets(model_form, ## formula
-                             data = train_pobre_numeric, ## data frame Note we are using the training sample.
-                             nvmax = 118, ## show only the first 3  models models
+                             data = train_pobre_numeric, ## data frame Note we are using the training sample
                              method = "backward" )  ## apply Forward Stepwise Selection
 
 max_nvars= backward_model[["np"]]-1  ## minus one because it counts the intercept.

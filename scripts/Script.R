@@ -30,7 +30,7 @@ p_load(rio, # import/export data
        ROSE,
        leaps,
        fastDummies,
-       doParallel)  # Fixed effects 
+       doParallel)
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -193,7 +193,7 @@ train_hogares<- train_hogares %>%
          cuartos_usados = P5010,
          total_personas = Nper
          ) %>% 
-  dplyr::select(id,Dominio,arrienda,Pobre,propia_pagada,propia_enpago,en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas)
+  dplyr::select(id,Dominio,arrienda,Pobre, Ingtotug, Ingtotugarr, Ingpcug, propia_pagada,propia_enpago,en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas)
 
 
 test_hogares<- test_hogares %>% 
@@ -285,7 +285,9 @@ smote_subset <- smote_subset %>%
 smote_subset_clean <- smote_subset %>%
   select_if(is.numeric)
 
-predictors <- colnames(smote_subset_clean)[-which(colnames(smote_subset_clean) == "Pobre")]
+columns_to_exclude <- c("Pobre", "Ingtotug", "Ingtotugarr", "Ingpcug")
+predictors <- setdiff(colnames(smote_subset_clean), columns_to_exclude)
+#predictors <- colnames(smote_subset_clean)[-which(colnames(smote_subset_clean) == "Pobre")]
 head( smote_subset_clean[predictors])
 smote_output <- SMOTE(X = smote_subset_clean[predictors],
                       target = smote_subset_clean$Pobre)
@@ -341,10 +343,11 @@ rm(list = objects_to_remove)
 #2 Best Subset Selection Pobre ---------------------------------------------
 
 ### Backward subset selection
-
-train_pobre_numeric <- train %>%
+train_pobre_numeric <- dplyr::select(train, -Ingpcug, -Ingtotug, -Ingtotugarr)
+train_pobre_numeric <- train_pobre_numeric %>%
   mutate(
     Pobre = as.integer(train$Pobre == "Yes"))
+
 model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
 backward_model <- regsubsets(model_form, ## formula
                              data = train_pobre_numeric, ## data frame Note we are using the training sample.
@@ -425,9 +428,71 @@ maxF1ModelIndex_for
 
 #3 Best Subset Selection Ingreso -------------------------------------------
 
+#Backward
+train_ing <- dplyr::select(train, -Pobre, -Ingtotug, -Ingtotugarr)
+model_form_ing <- Ingpcug ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
 
 
+backward_model_ing <- regsubsets(model_form_ing, ## formula
+                             data = train_ing, ## data frame Note we are using the training sample.
+                             nvmax = 118, ## show only the first 3  models models
+                             method = "backward" )  ## apply Forward Stepwise Selection
 
+max_nvars_ing= backward_model[["np"]]-1  ## minus one because it counts the intercept.
+max_nvars_ing
+
+k_ing <- 10
+n_ing <- nrow (train_ing)
+folds <- sample (rep (1:k, length = n_ing))
+
+cv.Scores_back_ing <- matrix(NA, k_ing, max_nvars_ing, dimnames = list(NULL, paste(1:max_nvars_ing)))
+
+predict.regsubsets<- function (object , newdata , id, ...) {
+  form<- model_form_ing
+  mat <- model.matrix(form , newdata) ## model matrix in the test data
+  coefi <- coef(object , id = id) ## coefficient for the best model with id vars
+  xvars <- names (coefi)  ## variables in the model
+  mat[, xvars] %*% coefi  ## prediction 
+  
+}
+
+for (j in 1:k) {
+  best_fit <- regsubsets(model_form_ing,
+                         data = train_ing[folds != j, ],
+                         nvmax = max_nvars_ing, 
+                         method = "backward") 
+  for (i in 1:max_nvars) {
+    pred <- predict(best_fit , train_ing[folds == j, ], id = i)
+    cv.Scores_back_ing[j, i] <-
+      mean ((train_ing$Ingpcug[folds == j] - pred)^2)
+  }
+}
+
+mean.cv.Scores_back_ing <- apply (cv.Scores_back_ing , 2, mean)
+mean.cv.Scores_back_ing
+which.min (mean.cv.Scores_back_ing)
+plot (mean.cv.Scores_back_ing , type = "b")
+
+#Forward
+
+cv.Scores_for_ing <- matrix(NA, k_ing, max_nvars_ing, dimnames = list(NULL, paste(1:max_nvars_ing)))
+
+for (j in 1:k) {
+  best_fit <- regsubsets(model_form_ing,
+                         data = train_ing[folds != j, ],
+                         nvmax = max_nvars_ing, 
+                         method = "backward") 
+  for (i in 1:max_nvars) {
+    pred <- predict(best_fit , train_ing[folds == j, ], id = i)
+    cv.Scores_for_ing[j, i] <-
+      mean ((train_ing$Ingpcug[folds == j] - pred)^2)
+  }
+}
+
+mean.cv.Scores_for_ing <- apply (cv.Scores_for_ing , 2, mean)
+mean.cv.Scores_for_ing
+which.min (mean.cv.Scores_for_ing)
+plot (mean.cv.Scores_for_ing , type = "b")
 
 #4: CLASSIFICATION APPROACH ----------------------------------------------------
 

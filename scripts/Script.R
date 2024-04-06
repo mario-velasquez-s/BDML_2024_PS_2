@@ -29,7 +29,8 @@ p_load(rio, # import/export data
        smotefamily,
        ROSE,
        leaps,
-       fastDummies)  # Fixed effects 
+       fastDummies,
+       doParallel)  # Fixed effects 
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -217,7 +218,7 @@ test<- test_hogares %>%
 
 train<- train %>% 
   mutate(Dominio=factor(Dominio),
-         #Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
+         Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
          arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
          propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
@@ -264,20 +265,13 @@ test <- test %>%
     perc_uso_cuartos = (cuartos_usados/num_cuartos) *100
   )
 
-##Remove all dfs
-
-objects <- ls()
-
-objects_to_remove <- setdiff(objects, c("train", "test"))
-rm(list = objects_to_remove)
-
 ## SMOTE
 
 
 smote_subset  <- train
 smote_subset <- smote_subset %>%
   mutate(
-    #Pobre = as.integer(train$Pobre == "Yes"),
+    Pobre = as.integer(train$Pobre == "Yes"),
     Dominio = as.integer(train$Dominio),
     arrienda = as.integer(train$arrienda == "Yes"),
     propia_pagada = as.integer(train$propia_pagada == "Yes"),
@@ -315,7 +309,7 @@ skim(smote_data_train)
 
 smote_data_train <- smote_data_train %>% rename(Pobre = class)
 smote_data_train <- smote_data_train %>%
-  mutate(Pobre = as.numeric(smote_data_train$Pobre))
+  mutate(Pobre = factor(smote_data_train$Pobre,levels = c(0, 1),labels=c("No","Yes")))
 #smote_data_train$class <- smote_data_train %>% mutate(Pobre = ifelse(class == "X1", 0,1))
 
 ## ROSE
@@ -335,6 +329,13 @@ downSampledTrain <- downSample(x = train,
                                y = train$Pobre,
                                ## keep the class variable name the same:
                                yname = "Pobre")
+
+##Remove all dfs
+
+objects <- ls()
+
+objects_to_remove <- setdiff(objects, c("train", "test", "downSampledTrain", "upSampledTrain", "rose_train", "smote_data_train"))
+rm(list = objects_to_remove)
 
 #2: CLASSIFICATION APPROACH ----------------------------------------------------
 
@@ -746,7 +747,7 @@ plot(elastic_model, main = "Elastic Net Regression")
 
 train_control <- trainControl(
   method = "cv",
-  number = 30,
+  number = 10,
   classProbs = TRUE,
   summaryFunction = defaultSummary,
   savePredictions = TRUE
@@ -866,7 +867,8 @@ glm_4 <- train(
   trControl = train_control
 )
 
-smote_spec <- class ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+
+smote_spec <- Pobre ~ (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
 glm_5 <- train(formula(smote_spec), 
                data = smote_data_train, 
                method = "glm",

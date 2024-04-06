@@ -337,9 +337,101 @@ objects <- ls()
 objects_to_remove <- setdiff(objects, c("train", "test", "downSampledTrain", "upSampledTrain", "rose_train", "smote_data_train"))
 rm(list = objects_to_remove)
 
-#2: CLASSIFICATION APPROACH ----------------------------------------------------
 
-## 2.1: Linear Regression----------
+#2 Best Subset Selection Pobre ---------------------------------------------
+
+### Backward subset selection
+
+train_pobre_numeric <- train %>%
+  mutate(
+    Pobre = as.integer(train$Pobre == "Yes"))
+model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+backward_model <- regsubsets(model_form, ## formula
+                             data = train_pobre_numeric, ## data frame Note we are using the training sample.
+                             nvmax = 118, ## show only the first 3  models models
+                             method = "backward" )  ## apply Forward Stepwise Selection
+
+max_nvars= backward_model[["np"]]-1  ## minus one because it counts the intercept.
+max_nvars
+
+predict.regsubsets<- function (object , newdata , id, ...) {
+  form<- model_form
+  mat <- model.matrix(form , newdata) ## model matrix in the test data
+  coefi <- coef(object , id = id) ## coefficient for the best model with id vars
+  xvars <- names (coefi)  ## variables in the model
+  mat[, xvars] %*% coefi  ## prediction 
+  
+}
+
+k <- 10
+n <- nrow (train_pobre_numeric)
+folds <- sample (rep (1:k, length = n))
+
+calculateF1Score <- function(actual, predicted) {
+  tp <- sum(predicted == 1 & actual == 1)  # True Positives
+  fp <- sum(predicted == 1 & actual == 0)  # False Positives
+  fn <- sum(predicted == 0 & actual == 1)  # False Negatives
+  
+  precision <- tp / (tp + fp)
+  recall <- tp / (tp + fn)
+  
+  f1Score <- 2 * ((precision * recall) / (precision + recall))
+  return(f1Score)
+}
+
+cv.f1Scores_back <- matrix(NA, k, max_nvars, dimnames = list(NULL, paste(1:max_nvars)))
+
+for (j in 1:k) {
+  best_fit <- regsubsets(model_form, data = train_pobre_numeric[folds != 1, ], nvmax = max_nvars, method = "backward")
+  
+  for (i in 1:max_nvars) {
+    # Assuming your outcome is binary, and you're making binary predictions
+    # You may need to adjust the threshold or method of generating predictions based on your specific context
+    predicted_probs <- predict(best_fit, train_pobre_numeric[folds == j, ], id = i)
+    predicted_classes <- ifelse(predicted_probs > 0.3, 1, 0) # Adjust threshold as necessary
+    
+    f1Score <- calculateF1Score(train_pobre_numeric$Pobre[folds == j], predicted_classes)
+    cv.f1Scores_back[j, i] <- f1Score
+  }
+}
+
+mean.f1Scores_back <- apply(cv.f1Scores_back, 2, mean)
+maxF1ModelIndex_back <- which.max(mean.f1Scores_back)
+plot(mean.f1Scores_back, type = "b", main = "Mean F1 Score Backward", xlab = "Number of Variables", ylab = "Mean F1 Score")
+maxF1ModelIndex_back
+
+### Forward subset selection
+
+cv.f1Scores_for <- matrix(NA, k, max_nvars, dimnames = list(NULL, paste(1:max_nvars)))
+
+for (j in 1:k) {
+  best_fit <- regsubsets(model_form, data = train_pobre_numeric[folds != 1, ], nvmax = max_nvars, method = "forward")
+  
+  for (i in 1:max_nvars) {
+    # Assuming your outcome is binary, and you're making binary predictions
+    # You may need to adjust the threshold or method of generating predictions based on your specific context
+    predicted_probs <- predict(best_fit, train_pobre_numeric[folds == j, ], id = i)
+    predicted_classes <- ifelse(predicted_probs > 0.3, 1, 0) # Adjust threshold as necessary
+    
+    f1Score <- calculateF1Score(train_pobre_numeric$Pobre[folds == j], predicted_classes)
+    cv.f1Scores_for[j, i] <- f1Score
+  }
+}
+
+mean.f1Scores_for <- apply(cv.f1Scores_for, 2, mean)
+maxF1ModelIndex_for <- which.max(mean.f1Scores_for)
+plot(mean.f1Scores_for, type = "b", main = "Mean F1 Score Forward", xlab = "Number of Variables", ylab = "Mean F1 Score")
+maxF1ModelIndex_for
+
+#3 Best Subset Selection Ingreso -------------------------------------------
+
+
+
+
+
+#4: CLASSIFICATION APPROACH ----------------------------------------------------
+
+## 4.1: Linear Regression----------
 set.seed(685397)
 
 colnames(train)
@@ -480,7 +572,7 @@ best_thresh_cv(train,k,mod3)
 
 
 
-## 2.2: ElasticNet-------
+## 4.2: ElasticNet-------
 
   # Installing needed packages
 
@@ -743,7 +835,7 @@ plot(elastic_model, main = "Elastic Net Regression")
   
   elastic_net_iter_2(train, selected_variables, 0.825, 0.9, 0.025, 5)
   
-## 2.3: CART - Logit-------
+## 4.3: CART - Logit-------
 
 train_control <- trainControl(
   method = "cv",
@@ -901,50 +993,9 @@ predictSample_glm_1
 
 write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 
-### Best subset selection
 
-model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
-fordward_model <- regsubsets(model_form, ## formula
-                             data = train, ## data frame Note we are using the training sample.
-                             nvmax = 118, ## show only the first 3  models models
-                             method = "backward" )  ## apply Forward Stepwise Selection
 
-max_nvars= fordward_model[["np"]]-1  ## minus one because it counts the intercept.
-max_nvars
-
-predict.regsubsets<- function (object , newdata , id, ...) {
-  form<- model_form
-  mat <- model.matrix(form , newdata) ## model matrix in the test data
-  coefi <- coef(object , id = id) ## coefficient for the best model with id vars
-  xvars <- names (coefi)  ## variables in the model
-  mat[, xvars] %*% coefi  ## prediction 
-  
-}
-
-k <- 10
-n <- nrow (train)
-folds <- sample (rep (1:k, length = n))
-cv.errors <- matrix (NA, k, max_nvars,
-                     dimnames = list (NULL , paste (1:max_nvars)))
-
-for (j in 1:k) {
-  best_fit <- regsubsets(model_form,
-                         data = train[folds != j, ],
-                         nvmax = max_nvars, 
-                         method = "forward")  ## remember to use the method forward. 
-  for (i in 1:max_nvars) {
-    pred <- predict(best_fit , train[folds == j, ], id = i)
-    cv.errors[j, i] <-
-      mean ((train$Pobre[folds == j] - pred)^2)
-  }
-}
-
-mean.cv.errors <- apply (cv.errors , 2, mean)
-mean.cv.errors
-which.min (mean.cv.errors)
-plot (mean.cv.errors , type = "b")
-
-## 2.4: CART - LDA and QDA----
+## 4.4: CART - LDA and QDA----
 
 
 mod0 <- Pobre ~ nmenores + arrienda

@@ -1251,7 +1251,7 @@ cv_tree
 plot(cv_tree, pch="")
 cv_tree$bestTune$cp
 
-## Precicting and generating prediction file
+## Predicting and generating prediction file for trees
 predictSample <- test %>%
   mutate(pobre_lab = ifelse(predict(tree2, newdata = test, type = "class") == "Yes",1,0)) %>%
   dplyr::select(id,pobre_lab)
@@ -1259,6 +1259,41 @@ predictSample <- test %>%
 
 head(predictSample)
 write.csv(predictSample,"predictions/classification_tree.csv", row.names = FALSE)
+
+
+
+## Bagging variation
+##Naive approach
+bagged <- ranger(Pobre ~ .,
+                 data = trainbase,
+                 num.trees = 500,
+                 mtry = 24,
+                 min.node.size = 1000)
+bagged
+
+##I obtain bagging model's predictions
+bagged_pred  <- predict(bagged,
+                       data = testbase, 
+                       predict.all = TRUE # para obtener la clasificación de cada arbol. 
+)
+bagged_pred  <- as.data.frame( bagged_pred$predictions )
+
+ntrees <- ncol(bagged_pred)
+probabilities <- rowSums(bagged_pred == 2) / ntrees
+aucval_ipred <- Metrics::auc(actual = pobre0, predicted = probabilities)
+aucval_ipred
+
+## Optimizing parameters approach
+
+  ## Predicting and generating prediction file for bagging
+  predictSample <- test %>%
+    mutate(pobre_lab = ifelse(predict(bagged, newdata = test, type = "class") == "Yes",1,0)) %>%
+    dplyr::select(id,pobre_lab)
+  
+  
+  head(predictSample)
+  write.csv(predictSample,"predictions/classification_tree.csv", row.names = FALSE)
+
 
 
 #3: INCOME REGRESSION APPROACH -------------------------------------------------

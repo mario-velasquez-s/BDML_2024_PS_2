@@ -306,17 +306,9 @@ prop.table(table(train$Pobre))
 prop.table(table(smote_data_train$class))
 
 smote_data_train<- smote_data_train %>% 
-  mutate(Dominio=factor(Dominio),
-        arrienda=factor(arrienda),
-         propia_pagada = factor(propia_pagada),
-         propia_enpago = factor(propia_enpago),
-         en_usufructo = factor(en_usufructo),
-         sin_titulo = factor(sin_titulo),
-         H_Head_mujer = factor(H_Head_mujer),
-         H_Head_ocupado = factor(H_Head_ocupado),
-         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud)
+  mutate(Dominio=factor(Dominio)
   )
-skim(smote_data_train)
+#skim(smote_data_train)
 
 smote_data_train <- smote_data_train %>% rename(Pobre = class)
 smote_data_train <- smote_data_train %>%
@@ -1037,7 +1029,8 @@ glm_4 <- train(
 )
 
 
-smote_spec <- Pobre ~ (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+smote_spec <- Pobre ~ . #(cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+smote_data_train_reduced <- smote_data_train[sample(nrow(smote_data_train), size = nrow(smote_data_train) / 2), ]
 glm_5 <- train(formula(smote_spec), 
                data = smote_data_train, 
                method = "glm",
@@ -1253,6 +1246,137 @@ write.csv(predictSample,"predictions/classification_tree.csv", row.names = FALSE
 
 
 #3: INCOME REGRESSION APPROACH -------------------------------------------------
+
+#Linear regression 
+set.seed(123)
+all_vars <- names(train)
+exclude_vars <- c("Ingtotug", "Ingtotugarr", "Pobre")
+include_vars <- setdiff(all_vars, exclude_vars)
+target_var <- "Ingpcug"
+formula_str <- paste(target_var, "~", paste(setdiff(include_vars, target_var), collapse = " + "))
+inc_mod1 <- as.formula(formula_str)
+train_inc <- train 
+K <- 10
+nrow(train_inc)/K
+train_inc<-train_inc  %>% mutate(fold=c(rep(1,16496),
+                              rep(2,16496),
+                              rep(3,16496),
+                              rep(4,16496),
+                              rep(5,16496),
+                              rep(6,16496),
+                              rep(7,16496),
+                              rep(8,16496),
+                              rep(9,16496),
+                              rep(10,16496)))
+
+fit1<- lm(inc_mod1, data= train_inc  %>% filter(fold!=1))
+yhat1<- predict(fit1,newdata=train_inc  %>% filter(fold==1) )
+
+db_train<-list()
+db_test<-list()
+
+for(i in 1:10){
+  db_train[[i]] <- train_inc %>% filter(fold != i) # Trains
+  db_test[[i]] <- train_inc %>% filter(fold == i) # Tests
+  
+  fit <- lm(inc_mod1, data = db_train[[i]])
+  # Storing predictions in a separate column
+  db_test[[i]]$Ingpcug_hat <- predict(fit, newdata = db_test[[i]])
+  # Classify as 'pobre' based on the threshold
+  db_test[[i]]$pobre_pred <- ifelse(db_test[[i]]$Ingpcug_hat < 300000, 1, 0)
+}
+
+precision_list <- list()
+recall_list <- list()
+f1_score_list <- list()
+
+for(i in 1:10){
+  # Assuming db_test[[i]] already has the 'pobre_pred' column from previous steps
+  true_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "Yes")
+  false_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "No")
+  false_negatives <- sum(db_test[[i]]$pobre_pred == 0 & db_test[[i]]$Pobre == "Yes")
+  
+  # Calculate precision and recall for each fold
+  precision <- true_positives / (true_positives + false_positives)
+  recall <- true_positives / (true_positives + false_negatives)
+  
+  # Handle cases where precision or recall are NaN due to division by zero
+  precision <- ifelse(is.nan(precision), 0, precision)
+  recall <- ifelse(is.nan(recall), 0, recall)
+  
+  # Calculate F1 score
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  # Handle case where F1 score is NaN due to division by zero in the formula
+  f1_score <- ifelse(is.nan(f1_score), 0, f1_score)
+  
+  # Store precision, recall, and F1 score
+  precision_list[[i]] <- precision
+  recall_list[[i]] <- recall
+  f1_score_list[[i]] <- f1_score
+}
+
+# Calculate average F1 score across folds
+mean_f1_score <- mean(unlist(f1_score_list), na.rm = TRUE)
+mean_f1_score
+
+
+calculate_f1_for_threshold <- function(threshold, train_inc, inc_mod1) {
+  db_train <- list()
+  db_test <- list()
+  f1_score_list <- vector("list", 10)
+  
+  for(i in 1:10) {
+    db_train[[i]] <- train_inc %>% filter(fold != i)
+    db_test[[i]] <- train_inc %>% filter(fold == i)
+    
+    fit <- lm(inc_mod1, data = db_train[[i]])
+    db_test[[i]]$Ingpcug_hat <- predict(fit, newdata = db_test[[i]])
+    db_test[[i]]$pobre_pred <- ifelse(db_test[[i]]$Ingpcug_hat < threshold, 1, 0)
+    
+    true_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "Yes")
+    false_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "No")
+    false_negatives <- sum(db_test[[i]]$pobre_pred == 0 & db_test[[i]]$Pobre == "Yes")
+    
+    precision <- true_positives / (true_positives + false_positives)
+    recall <- true_positives / (true_positives + false_negatives)
+    
+    precision[is.nan(precision)] <- 0
+    recall[is.nan(recall)] <- 0
+    
+    f1_score <- 2 * (precision * recall) / (precision + recall)
+    f1_score[is.nan(f1_score)] <- 0
+    
+    f1_score_list[[i]] <- f1_score
+  }
+  
+  mean_f1_score <- mean(unlist(f1_score_list), na.rm = TRUE)
+  return(mean_f1_score)
+}
+
+start_threshold <- 100000
+end_threshold <- 500000
+step_size <- 10000
+
+# Initialize variables to store the best threshold and its F1 score
+best_threshold <- start_threshold
+best_f1_score <- -Inf  # Start with the lowest possible value
+
+# Iterate over the interval in steps of 1000
+for(threshold in seq(from = start_threshold, to = end_threshold, by = step_size)) {
+  current_f1_score <- calculate_f1_for_threshold(threshold, train_inc, inc_mod1)
+  
+  # Update the best threshold if the current one is better
+  if(current_f1_score > best_f1_score) {
+    best_threshold <- threshold
+    best_f1_score <- current_f1_score
+  }
+}
+
+# Output the best threshold and its F1 score
+best_threshold # 370000
+best_f1_score # 0.5479155
+
+# Elastic Net 
 
 
 

@@ -1268,10 +1268,57 @@ aucval_ipred <- Metrics::auc(actual = pobre0, predicted = probabilities)
 aucval_ipred
 
 ## Optimizing parameters approach
+fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
+ctrl<- trainControl(method = "cv",
+                    number = 5,
+                    summaryFunction = fiveStats,
+                    classProbs = TRUE,
+                    verbose=FALSE,
+                    savePredictions = TRUE)
+mtry_grid<-expand.grid(mtry =c(2,5,8,10,13,24), # 24 inclueye bagging
+                       min.node.size= c(100, 500, 1000), #controla la complejidad del arbol
+                       splitrule= 'gini') #splitrule fija en gini. 
+mtry_grid
+
+cv_RForest <- train(Pobre ~ .,
+                    data = trainbase,
+                    method = "ranger",
+                    trControl = ctrl,
+                    metric = "ROC",
+                    tuneGrid = mtry_grid,
+                    ntree = 500)
+cv_RForest$finalModel
+
+rf_pred <- predict(cv_RForest, 
+                   newdata = testbase, 
+                   type="prob" ## class for class prediction
+)
+aucval_rf <- Metrics::auc(actual = pobre0,predicted =rf_pred[,2])
+aucval_rf
+
+#Best forest
+best_forest <- ranger(Pobre ~ .,
+                 data = trainbase,
+                 num.trees = 500,
+                 mtry = 5,
+                 min.node.size = 100,
+                 importance = "impurity")
+
+imp<-importance(best_forest)
+imp2<- data.frame(variables= names(imp),
+                  importance= imp)
+
+ggplot(imp2, aes(x = reorder(variables, importance) , y =importance )) +
+  geom_bar(stat = "identity", fill = "red") +
+  labs(title = "Variable ", x = "Importance", y="Variable") +
+  theme_minimal() +
+  coord_flip() 
+
+
 
   ## Predicting and generating prediction file for bagging
   predictSample <- test %>%
-    mutate(pobre_lab = ifelse(predict(bagged, newdata = test, type = "class") == "Yes",1,0)) %>%
+    mutate(pobre_lab = ifelse(predict(best_forest, data = test, type = "prob") > 0.3,1,0)) %>%
     dplyr::select(id,pobre_lab)
   
   

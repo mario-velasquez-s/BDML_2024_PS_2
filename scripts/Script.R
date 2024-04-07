@@ -30,7 +30,13 @@ p_load(rio, # import/export data
        ROSE,
        leaps,
        fastDummies,
-       doParallel)
+       doParallel,
+       rpart,
+       rpart.plot,
+       Metrics,
+       ranger,
+       MLmetrics ## Estimate F1 Score
+       )
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -98,7 +104,7 @@ afiliado_missing <- ggplot(train_personas_AfiSaludmiss, aes(x=edad))+
   labs(x="Edad", y = "Cuenta") + 
   theme_bw()
 
-ggsave("./views/afiliado_missing.pdf", plot = afiliado_missing)
+##ggsave("./views/afiliado_missing.pdf", plot = afiliado_missing)
 
 summary(train_personas_AfiSaludmiss$edad) ## Conclusion: Those missing in afiliacionSalud are children and someone with 84 years. 
 ## I can impute them with the values of their parents. I assume that if someone in the household has health security, the
@@ -267,6 +273,7 @@ test <- test %>%
     perc_uso_cuartos = (cuartos_usados/num_cuartos) *100
   )
 
+##------------------------------------------------------------------------------
 ## SMOTE
 
 
@@ -1147,6 +1154,102 @@ test$Pobre_hat_qda1<-factor(test$Pobre_hat_qda1)
 confusionMatrix(data = qda1$pred$pred, 
                 reference = qda1$pred$obs, 
                 positive="Yes", mode = "prec_recall")
+
+
+## 4.5 Tree ------------------------------------------------------------------
+#Do until line 273, then...
+## For a classification approach, we will drop the income variables
+names(train)
+train <- train %>% dplyr::select(-c("Ingtotug","Ingtotugarr","Ingpcug"))
+
+## I set the reference value for the classification in Poor = "No"
+train <- train %>% mutate(Pobre=relevel(Pobre,ref="No"))
+
+set.seed(307795)
+inTrain <- createDataPartition(y = train$Pobre,
+                               p = 0.7,
+                               list = FALSE)
+trainbase <- train[inTrain,]
+testbase <- train[-inTrain,]
+
+##The same distribution between poors and not poors
+prop.table(table(trainbase$Pobre))
+prop.table(table(testbase$Pobre))
+
+## We estimate the tree by using rpart
+tree1 <- rpart(Pobre ~ .,
+               data = trainbase,
+               method = "class",
+               cp = 0,
+               minbucket = 1000)
+
+tree2 <- rpart(Pobre ~ arrienda + propia_pagada + sin_titulo + num_cuartos + total_personas +
+                 H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad +
+                 nmenores + perc_ocupados + perc_edad_trabajar,
+               data = trainbase,
+               method = "class",
+               cp = 0,
+               minbucket = 1000)
+
+
+#prp(tree1, under = TRUE, yesno = 2, faclen = 0, varlen=15, box.palette = "-RdYlGn")
+
+
+pobre0<- ifelse(testbase$Pobre=="Yes",1,0) #Volder default en test  numérico
+pred_prob0 <- predict(tree2, newdata = testbase, type = "prob")    ## Predecir la probabilidad (en lugar de la clase)
+aucval_arbol <- Metrics::auc(actual = pobre0,predicted = pred_prob0[,2]) #calcular el AUC
+print(paste0("AUC: ",aucval_arbol))
+
+
+pobre_hat <- predict(tree2, newdata = testbase, type = "class")
+f1_tree1 <- F1_Score(pobre_hat,testbase$Pobre)
+print(paste0("F1: ",f1_tree1))
+
+fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))  ## Para usar ROC) (u otras más) para tuning
+
+ctrl <- trainControl(method = "cv",
+                     number = 5,
+                     summaryFunction = fiveStats,
+                     classProbs = TRUE,
+                     verbose = FALSE,
+                     savePredictions = TRUE)
+
+## We specify the grid for alpha
+grid <- expand.grid(cp = seq(0, 0.1, 0.02))
+
+cv_tree <- train(Pobre ~ arrienda + propia_pagada + sin_titulo + num_cuartos + total_personas +
+                   H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad +
+                   nmenores + perc_ocupados + perc_edad_trabajar,
+                 data = train,
+                 method = "rpart", 
+                 trControl = ctrl, 
+                 tuneGrid = grid, 
+                 metric= "F"
+)
+
+cv_tree <- train(Pobre ~ .,
+                 data = train,
+                 method = "rpart2", 
+                 trControl = ctrl, 
+                 tuneGrid = expand.grid(maxdepth=1:20), 
+                 metric= "F",
+                 control = rpart.control(minsplit = 4, 
+                                         minbucket =  900, 
+                                         cp = 0)
+)
+
+cv_tree
+plot(cv_tree, pch="")
+cv_tree$bestTune$cp
+
+## Precicting and generating prediction file
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(predict(tree2, newdata = test, type = "class") == "Yes",1,0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/classification_tree.csv", row.names = FALSE)
 
 
 #3: INCOME REGRESSION APPROACH -------------------------------------------------

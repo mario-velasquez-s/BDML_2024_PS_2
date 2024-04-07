@@ -306,9 +306,17 @@ prop.table(table(train$Pobre))
 prop.table(table(smote_data_train$class))
 
 smote_data_train<- smote_data_train %>% 
-  mutate(Dominio=factor(Dominio)
+  mutate(Dominio=factor(Dominio),
+        arrienda=factor(arrienda),
+         propia_pagada = factor(propia_pagada),
+         propia_enpago = factor(propia_enpago),
+         en_usufructo = factor(en_usufructo),
+         sin_titulo = factor(sin_titulo),
+         H_Head_mujer = factor(H_Head_mujer),
+         H_Head_ocupado = factor(H_Head_ocupado),
+         H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud)
   )
-#skim(smote_data_train)
+skim(smote_data_train)
 
 smote_data_train <- smote_data_train %>% rename(Pobre = class)
 smote_data_train <- smote_data_train %>%
@@ -1029,8 +1037,16 @@ glm_4 <- train(
 )
 
 
-smote_spec <- Pobre ~ . #(cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
-smote_data_train_reduced <- smote_data_train[sample(nrow(smote_data_train), size = nrow(smote_data_train) / 2), ]
+smote_spec <- Pobre ~  cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+smote_data_train <- as.data.table(smote_data_train)
+registerDoParallel(cores = detectCores())
+glm_5 <- train(formula(smote_spec), 
+               data = smote_data_train, 
+               method = "glm",
+               trControl = train_control,
+               family = "binomial",
+               allowParallel = TRUE)
+
 glm_5 <- train(formula(smote_spec), 
                data = smote_data_train, 
                method = "glm",

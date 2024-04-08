@@ -35,7 +35,8 @@ p_load(rio, # import/export data
        rpart.plot,
        Metrics,
        ranger,
-       MLmetrics ## Estimate F1 Score
+       MLmetrics,
+       glmnet
        )
 
 # 1: Initial Data Manipulation -----------------------------------------------
@@ -1038,22 +1039,14 @@ glm_4 <- train(
 
 
 smote_spec <- Pobre ~  cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
-smote_data_train <- as.data.table(smote_data_train)
-registerDoParallel(cores = detectCores())
 glm_5 <- train(formula(smote_spec), 
-               data = smote_data_train, 
-               method = "glm",
-               trControl = train_control,
-               family = "binomial",
-               allowParallel = TRUE)
-
-glm_5 <- train(formula(smote_spec), 
-               data = smote_data_train, 
+               data = rose_train, 
                method = "glm",
                trControl = train_control,
                family = "binomial")
 
-glm_5
+
+
 
 ### Applying the function
 
@@ -1065,7 +1058,9 @@ calculate_f1_and_plot(glm_3, train)
 
 calculate_f1_and_plot(glm_4, train)
 
-calculate_f1_and_plot(glm_5, smote_data_train, class_variable = "X1")
+calculate_f1_and_plot(glm_5, rose_train)
+
+#calculate_f1_and_plot(glm_5, smote_data_train, class_variable = "X1")
 
 ### Exporting predictions
 
@@ -1476,5 +1471,32 @@ best_f1_score # 0.5479155
 
 # Elastic Net 
 
+X <- model.matrix(~perc_ocupados + H_Head_Educ_level + nmenores + num_cuartos + H_Head_edad,train)
+X<-X[,-1] #remove constant
+y<-train$Ingpcug
 
+enet0 <- glmnet(
+  x = X,
+  y = y,
+  
+  alpha = 0.5 # Elastic Net penalty (0 for Ridge, 1 for Lasso)
+)
+coef(enet0, s= 0.1) 
+plot(enet0, xvar = "lambda")
 
+tuneGrid<- expand.grid(alpha= seq(0,1, 0.05), # between 0 and 1. 
+                       lambda=seq(0.5, 1.5, 0.5) ) 
+
+model_form <- Pobre ~ perc_ocupados + H_Head_Educ_level + nmenores + num_cuartos + H_Head_edad #(perc_ocupados + H_Head_Educ_level + nmenores + num_cuartos + H_Head_edad)^2
+
+trainControl <- trainControl( 
+  method = "cv",
+  number = 10)
+
+ENet<-train(model_form,
+            data=rose_train,
+            method = 'glmnet', 
+            trControl = trainControl,
+            tuneGrid = tuneGrid )  #specify the grid 
+
+plot(ENet)

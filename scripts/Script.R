@@ -1067,6 +1067,44 @@ write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
 
 ## 4.4: CART - LDA and QDA----
 
+max_nvars= fordward_model[["np"]]-1  ## minus one because it counts the intercept.
+max_nvars
+
+predict.regsubsets<- function (object , newdata , id, ...) {
+  form<- model_form
+  mat <- model.matrix(form , newdata) ## model matrix in the test data
+  coefi <- coef(object , id = id) ## coefficient for the best model with id vars
+  xvars <- names (coefi)  ## variables in the model
+  mat[, xvars] %*% coefi  ## prediction 
+  
+}
+
+k <- 10
+n <- nrow (train)
+folds <- sample (rep (1:k, length = n))
+cv.errors <- matrix (NA, k, max_nvars,
+                     dimnames = list (NULL , paste (1:max_nvars)))
+
+for (j in 1:k) {
+  best_fit <- regsubsets(model_form,
+                         data = train[folds != j, ],
+                         nvmax = max_nvars, 
+                         method = "forward")  ## remember to use the method forward. 
+  for (i in 1:max_nvars) {
+    pred <- predict(best_fit , train[folds == j, ], id = i)
+    cv.errors[j, i] <-
+      mean ((train$Pobre[folds == j] - pred)^2)
+  }
+}
+
+mean.cv.errors <- apply (cv.errors , 2, mean)
+mean.cv.errors
+which.min (mean.cv.errors)
+plot (mean.cv.errors , type = "b")
+
+## 2.4: CART - LDA and QDA ---------------------------------------------------
+
+
 
 mod0 <- Pobre ~ nmenores + arrienda
 
@@ -1077,6 +1115,8 @@ mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores +
 
 mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
 mod4 <- Pobre ~ .
+
+mod
 
 
 
@@ -1127,6 +1167,25 @@ confusionMatrix(data = lda1$pred$pred,
                 positive="Yes", mode = "prec_recall")
 
 calculate_f1_and_plot(lda1, train) # Best Threshold: 0.26 ; Max F1 Score: 0.5605039 
+
+
+## Model 4 LDA - all variables
+lda4 <- train(mod4, 
+              data = train, 
+              method = "lda",
+              trControl = ctrl)
+
+
+test<- test  %>% mutate(Pobre_hat_lda4=predict(lda4,newdata = test,
+                                               type = "raw"))
+
+test$Pobre_hat_lda4<-factor(test$Pobre_hat_lda4)
+
+confusionMatrix(data = lda4$pred$pred, 
+                reference = lda4$pred$obs, 
+                positive="Yes", mode = "prec_recall")
+
+calculate_f1_and_plot(lda4, train) # Best Threshold: 0.28 ; Max F1 Score: 0.5840728 
 
 
 

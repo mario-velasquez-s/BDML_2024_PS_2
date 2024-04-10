@@ -30,7 +30,14 @@ p_load(rio, # import/export data
        ROSE,
        leaps,
        fastDummies,
-       doParallel)
+       doParallel,
+       rpart,
+       rpart.plot,
+       Metrics,
+       ranger,
+       MLmetrics,
+       glmnet
+       )
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -65,6 +72,11 @@ pre_process_personas<-  function(data, ...) {
     EducLevel = ifelse(P6210==9,0,P6210), #Replace 9 with 0
     ocupado = ifelse(is.na(Oc),0,1),
     afiliadoSalud = ifelse(P6090 == 9, NA, ifelse(P6090==2,0,P6090)),
+    buscando_trabajo = ifelse(P6240==2,1,0),
+    incapacitado = ifelse(P6240==5,1,0),
+    oficio_hogar = ifelse(P6240==4,1,0),
+    estudiantes = ifelse(P6240==3,1,0),
+    arriendo_o_pension = ifelse(P7495==1,1,0),
     edad = P6040,
     ciudad = as.factor(Dominio),
     edad_trabajar = case_when(
@@ -73,7 +85,7 @@ pre_process_personas<-  function(data, ...) {
       TRUE ~ 0                        # Otherwise
     )
   ) %>% 
-    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud, edad, ciudad, edad_trabajar)
+    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud, edad, ciudad, edad_trabajar, buscando_trabajo, incapacitado,oficio_hogar, estudiantes, arriendo_o_pension)
   
   
 }
@@ -98,7 +110,7 @@ afiliado_missing <- ggplot(train_personas_AfiSaludmiss, aes(x=edad))+
   labs(x="Edad", y = "Cuenta") + 
   theme_bw()
 
-ggsave("./views/afiliado_missing.pdf", plot = afiliado_missing)
+##ggsave("./views/afiliado_missing.pdf", plot = afiliado_missing)
 
 summary(train_personas_AfiSaludmiss$edad) ## Conclusion: Those missing in afiliacionSalud are children and someone with 84 years. 
 ## I can impute them with the values of their parents. I assume that if someone in the household has health security, the
@@ -122,6 +134,95 @@ test_personas$afiliadoSalud <- ave(test_personas$afiliadoSalud,
                                       }
                                     })
 
+## Imputation of buscando_trabajo. 
+
+train_personas_BuscTrabmiss <- train_personas %>% 
+  mutate(BuscTrabmiss = ifelse(is.na(buscando_trabajo) == TRUE,1,0)) %>% 
+  dplyr::filter(BuscTrabmiss == 1)
+
+ggplot(train_personas_BuscTrabmiss, aes(x=edad))+
+  geom_histogram(fill="#0099F8") +
+  labs(x="Edad", y = "Cuenta") + 
+  theme_bw()
+
+impute_buscando_trabajo <- function(data) {
+  data <- data %>% mutate(buscando_trabajo = ifelse(is.na(buscando_trabajo) ==TRUE,0,buscando_trabajo))
+}
+
+train_personas <- impute_buscando_trabajo(train_personas)
+test_personas <- impute_buscando_trabajo(test_personas)
+
+## Imputation of incapacitado
+train_personas_incapacitadomiss <- train_personas %>% 
+  mutate(incapacitadomiss = ifelse(is.na(incapacitado) == TRUE,1,0)) %>% 
+  dplyr::filter(incapacitadomiss == 1)
+
+ggplot(train_personas_incapacitadomiss, aes(x=edad))+
+  geom_histogram(fill="#0099F8") +
+  labs(x="Edad", y = "Cuenta") + 
+  theme_bw()
+
+impute_incapacitado <- function(data) {
+  data <- data %>% mutate(incapacitado = ifelse(is.na(incapacitado) ==TRUE,0,incapacitado))
+}
+
+train_personas <- impute_incapacitado(train_personas)
+test_personas <- impute_incapacitado(test_personas)
+
+## Imputation of oficio_hogar
+
+train_personas_oficio_hogarmiss <- train_personas %>% 
+  mutate(oficio_hogarmiss = ifelse(is.na(oficio_hogar) == TRUE,1,0)) %>% 
+  dplyr::filter(oficio_hogarmiss == 1)
+
+ggplot(train_personas_oficio_hogarmiss, aes(x=edad))+
+  geom_histogram(fill="#0099F8") +
+  labs(x="Edad", y = "Cuenta") + 
+  theme_bw()
+
+impute_oficio_hogar <- function(data) {
+  data <- data %>% mutate(oficio_hogar = ifelse(is.na(oficio_hogar) ==TRUE,0,oficio_hogar))
+}
+
+train_personas <- impute_oficio_hogar(train_personas)
+test_personas <- impute_oficio_hogar(test_personas)
+
+## Imputation of estudiantes
+
+train_personas_estudiantesmiss <- train_personas %>% 
+  mutate(estudiantesmiss = ifelse(is.na(estudiantes) == TRUE,1,0)) %>% 
+  dplyr::filter(estudiantesmiss == 1)
+
+ggplot(train_personas_estudiantesmiss, aes(x=edad))+
+  geom_histogram(fill="#0099F8") +
+  labs(x="Edad", y = "Cuenta") + 
+  theme_bw()
+
+impute_estudiantes <- function(data) {
+  data <- data %>% mutate(estudiantes = ifelse(is.na(estudiantes) ==TRUE,0,estudiantes))
+}
+
+train_personas <- impute_estudiantes(train_personas)
+test_personas <- impute_estudiantes(test_personas)
+
+## Imputation of arriendo_o_pension
+
+
+train_personas_arriendo_o_pensionmiss <- train_personas %>% 
+  mutate(arriendo_o_pensionmiss = ifelse(is.na(arriendo_o_pension) == TRUE,1,0)) %>% 
+  dplyr::filter(arriendo_o_pensionmiss == 1)
+
+ggplot(train_personas_arriendo_o_pensionmiss, aes(x=edad))+
+  geom_histogram(fill="#0099F8") +
+  labs(x="Edad", y = "Cuenta") + 
+  theme_bw()
+
+impute_arriendo_o_pension <- function(data) {
+  data <- data %>% mutate(arriendo_o_pension = ifelse(is.na(arriendo_o_pension) ==TRUE,0,arriendo_o_pension))
+}
+
+train_personas <- impute_arriendo_o_pension(train_personas)
+test_personas <- impute_arriendo_o_pension(test_personas)
 
 ## Imputation of EducLevel
 
@@ -151,17 +252,23 @@ train_personas_nivel_hogar<- train_personas %>%
             nmenores=sum(menor,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
-            edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
+            edad_trabajar = sum(edad_trabajar, na.rm = TRUE),
+            nincapacitados = sum(incapacitado, na.rm = TRUE),
+            noficio_hogar = sum(oficio_hogar, na.rm = TRUE),
+            nestudiantes = sum(estudiantes, na.rm = TRUE),
+            narriendo_o_pension = sum(arriendo_o_pension, na.rm = TRUE)
   )
 
 train_personas_hogar<- train_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, edad) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, edad, incapacitado, arriendo_o_pension) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
          H_Head_afiliadoSalud = afiliadoSalud,
-         H_Head_edad = edad) %>% 
+         H_Head_edad = edad,
+         H_Head_incapacitado = incapacitado,
+         H_Head_arriendo_o_pension = arriendo_o_pension) %>% 
   left_join(train_personas_nivel_hogar)
 
 test_personas_nivel_hogar<- test_personas %>% 
@@ -170,17 +277,23 @@ test_personas_nivel_hogar<- test_personas %>%
             nmenores=sum(menor,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
-            edad_trabajar = sum(edad_trabajar, na.rm = TRUE)
+            edad_trabajar = sum(edad_trabajar, na.rm = TRUE),
+            nincapacitados = sum(incapacitado, na.rm = TRUE),
+            noficio_hogar = sum(oficio_hogar, na.rm = TRUE),
+            nestudiantes = sum(estudiantes, na.rm = TRUE),
+            narriendo_o_pension = sum(arriendo_o_pension, na.rm = TRUE)
   )
 
 test_personas_hogar<- test_personas %>% 
   filter(H_Head==1) %>% 
-  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, edad) %>% 
+  dplyr::select(id,mujer,EducLevel,ocupado,afiliadoSalud, edad, incapacitado, arriendo_o_pension) %>% 
   rename(H_Head_mujer=mujer,
          H_Head_Educ_level=EducLevel,
          H_Head_ocupado=ocupado,
          H_Head_afiliadoSalud = afiliadoSalud,
-         H_Head_edad = edad) %>% 
+         H_Head_edad = edad,
+         H_Head_incapacitado = incapacitado,
+         H_Head_arriendo_o_pension = arriendo_o_pension) %>% 
   left_join(test_personas_nivel_hogar)
 
 
@@ -255,7 +368,10 @@ train <- train %>%
     perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
     perc_ocupados = (nocupados / total_personas) * 100,
     perc_menores = (nmenores/total_personas) *100,
-    perc_uso_cuartos = (cuartos_usados/num_cuartos) *100
+    perc_uso_cuartos = (cuartos_usados/num_cuartos) *100,
+    perc_incapacitados = (nincapacitados/total_personas)*100,
+    perc_renta = (narriendo_o_pension/total_personas)*100,
+    perc_oficio_hogar = (noficio_hogar/total_personas)*100
   )
 
 test <- test %>%
@@ -264,9 +380,13 @@ test <- test %>%
     perc_edad_trabajar = (edad_trabajar / total_personas) * 100,
     perc_ocupados = (nocupados / total_personas) * 100,
     perc_menores = (nmenores/total_personas) *100,
-    perc_uso_cuartos = (cuartos_usados/num_cuartos) *100
+    perc_uso_cuartos = (cuartos_usados/num_cuartos) *100,
+    perc_incapacitados = (nincapacitados/total_personas)*100,
+    perc_renta = (narriendo_o_pension/total_personas)*100,
+    perc_oficio_hogar = (noficio_hogar/total_personas)*100
   )
 
+##------------------------------------------------------------------------------
 ## SMOTE
 
 
@@ -1030,14 +1150,26 @@ glm_4 <- train(
 )
 
 
-smote_spec <- Pobre ~ (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
-glm_5 <- train(formula(smote_spec), 
-               data = smote_data_train, 
+rose_spec_1 <- Pobre ~  cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
+glm_5 <- train(formula(rose_spec_1), 
+               data = rose_train, 
                method = "glm",
                trControl = train_control,
                family = "binomial")
 
-glm_5
+rose_spec_2  <- Pobre ~ perc_ocupados + H_Head_Educ_level + nmenores + num_cuartos + H_Head_edad + (perc_ocupados + H_Head_Educ_level + nmenores + num_cuartos + H_Head_edad)^2
+glm_6 <- train(formula(rose_spec_2), 
+               data = rose_train, 
+               method = "glm",
+               trControl = train_control,
+               family = "binomial")
+
+rose_spec_3  <- Pobre ~ perc_ocupados + H_Head_Educ_level + nmenores + num_cuartos
+glm_7 <- train(formula(rose_spec_3), 
+               data = rose_train, 
+               method = "glm",
+               trControl = train_control,
+               family = "binomial")
 
 ### Applying the function
 
@@ -1049,19 +1181,25 @@ calculate_f1_and_plot(glm_3, train)
 
 calculate_f1_and_plot(glm_4, train)
 
-calculate_f1_and_plot(glm_5, smote_data_train, class_variable = "X1")
+calculate_f1_and_plot(glm_5, train)
+
+calculate_f1_and_plot(glm_6, train)
+
+calculate_f1_and_plot(glm_7, train)
+
+#calculate_f1_and_plot(glm_5, smote_data_train, class_variable = "X1")
 
 ### Exporting predictions
 
-predictSample_glm_1 <- test %>%
-  mutate(pobre_lab = predict(glm_4, newdata = test, type = "prob") %>%
+predictSample_glm_7 <- test %>%
+  mutate(pobre_lab = predict(glm_7, newdata = test, type = "prob") %>%
            `[[`("Yes")) %>%
   dplyr::select(id,pobre_lab)
-predictSample_glm_1$pobre <- ifelse(predictSample_glm_1$pobre_lab > 0.307, 1, 0)
-predictSample_glm_1 <- predictSample_glm_1[, c("id", "pobre")]
-predictSample_glm_1
+predictSample_glm_7$pobre <- ifelse(predictSample_glm_7$pobre_lab > 0.354, 1, 0)
+predictSample_glm_7 <- predictSample_glm_7[, c("id", "pobre")]
+predictSample_glm_7
 
-write.csv(predictSample_glm_1,"classification_logit.csv", row.names = FALSE)
+write.csv(predictSample_glm_7,"classification_logit.csv", row.names = FALSE)
 
 
 
@@ -1208,7 +1346,444 @@ confusionMatrix(data = qda1$pred$pred,
                 positive="Yes", mode = "prec_recall")
 
 
+## 4.5 Tree ------------------------------------------------------------------
+#Do until line 273, then...
+## For a classification approach, we will drop the income variables
+names(train)
+train <- train %>% dplyr::select(-c("Ingtotug","Ingtotugarr","Ingpcug"))
+
+## I set the reference value for the classification in Poor = "No"
+train <- train %>% mutate(Pobre=relevel(Pobre,ref="No"))
+
+set.seed(307795)
+inTrain <- createDataPartition(y = train$Pobre,
+                               p = 0.7,
+                               list = FALSE)
+trainbase <- train[inTrain,]
+testbase <- train[-inTrain,]
+
+##The same distribution between poors and not poors
+prop.table(table(trainbase$Pobre))
+prop.table(table(testbase$Pobre))
+
+## We estimate the tree by using rpart
+tree1 <- rpart(Pobre ~ .,
+               data = trainbase,
+               method = "class",
+               cp = 0,
+               minbucket = 1000)
+
+tree2 <- rpart(Pobre ~ arrienda + propia_pagada + sin_titulo + num_cuartos + total_personas +
+                 H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad +
+                 nmenores + perc_ocupados + perc_edad_trabajar,
+               data = trainbase,
+               method = "class",
+               cp = 0,
+               minbucket = 1000)
+
+
+#prp(tree1, under = TRUE, yesno = 2, faclen = 0, varlen=15, box.palette = "-RdYlGn")
+
+
+pobre0<- ifelse(testbase$Pobre=="Yes",1,0) #Volder default en test  numérico
+pred_prob0 <- predict(tree2, newdata = testbase, type = "prob")    ## Predecir la probabilidad (en lugar de la clase)
+aucval_arbol <- Metrics::auc(actual = pobre0,predicted = pred_prob0[,2]) #calcular el AUC
+print(paste0("AUC: ",aucval_arbol))
+
+
+pobre_hat <- predict(tree2, newdata = testbase, type = "class")
+f1_tree1 <- F1_Score(pobre_hat,testbase$Pobre)
+print(paste0("F1: ",f1_tree1))
+
+fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))  ## Para usar ROC) (u otras más) para tuning
+
+ctrl <- trainControl(method = "cv",
+                     number = 5,
+                     summaryFunction = fiveStats,
+                     classProbs = TRUE,
+                     verbose = FALSE,
+                     savePredictions = TRUE)
+
+## We specify the grid for alpha
+grid <- expand.grid(cp = seq(0, 0.1, 0.02))
+
+cv_tree <- train(Pobre ~ arrienda + propia_pagada + sin_titulo + num_cuartos + total_personas +
+                   H_Head_mujer + H_Head_Educ_level + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad +
+                   nmenores + perc_ocupados + perc_edad_trabajar,
+                 data = train,
+                 method = "rpart", 
+                 trControl = ctrl, 
+                 tuneGrid = grid, 
+                 metric= "F"
+)
+
+cv_tree <- train(Pobre ~ .,
+                 data = train,
+                 method = "rpart2", 
+                 trControl = ctrl, 
+                 tuneGrid = expand.grid(maxdepth=1:20), 
+                 metric= "F",
+                 control = rpart.control(minsplit = 4, 
+                                         minbucket =  900, 
+                                         cp = 0)
+)
+
+cv_tree
+plot(cv_tree, pch="")
+cv_tree$bestTune$cp
+
+## Predicting and generating prediction file for trees
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(predict(tree2, newdata = test, type = "class") == "Yes",1,0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/classification_tree.csv", row.names = FALSE)
+
+
+
+## Bagging variation
+##Naive approach
+bagged <- ranger(Pobre ~ .,
+                 data = trainbase,
+                 num.trees = 500,
+                 mtry = 24,
+                 min.node.size = 1000)
+bagged
+
+##I obtain bagging model's predictions
+bagged_pred  <- predict(bagged,
+                       data = testbase, 
+                       predict.all = TRUE # para obtener la clasificación de cada arbol. 
+)
+bagged_pred  <- as.data.frame( bagged_pred$predictions )
+
+ntrees <- ncol(bagged_pred)
+probabilities <- rowSums(bagged_pred == 2) / ntrees
+aucval_ipred <- Metrics::auc(actual = pobre0, predicted = probabilities)
+aucval_ipred
+
+## Optimizing parameters approach
+fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
+ctrl<- trainControl(method = "cv",
+                    number = 5,
+                    summaryFunction = fiveStats,
+                    classProbs = TRUE,
+                    verbose=FALSE,
+                    savePredictions = TRUE)
+mtry_grid<-expand.grid(mtry =c(2,5,8,10,13,24), # 24 inclueye bagging
+                       min.node.size= c(100, 500, 1000), #controla la complejidad del arbol
+                       splitrule= 'gini') #splitrule fija en gini. 
+mtry_grid
+
+cv_RForest <- train(Pobre ~ .,
+                    data = trainbase,
+                    method = "ranger",
+                    trControl = ctrl,
+                    metric = "ROC",
+                    tuneGrid = mtry_grid,
+                    ntree = 500)
+cv_RForest$finalModel
+
+rf_pred <- predict(cv_RForest, 
+                   newdata = testbase, 
+                   type="prob" ## class for class prediction
+)
+aucval_rf <- Metrics::auc(actual = pobre0,predicted =rf_pred[,2])
+aucval_rf
+
+#Best forest
+best_forest <- ranger(Pobre ~ .,
+                 data = trainbase,
+                 num.trees = 500,
+                 mtry = 5,
+                 min.node.size = 100,
+                 importance = "impurity")
+
+imp<-importance(best_forest)
+imp2<- data.frame(variables= names(imp),
+                  importance= imp)
+
+ggplot(imp2, aes(x = reorder(variables, importance) , y =importance )) +
+  geom_bar(stat = "identity", fill = "red") +
+  labs(title = "Variable ", x = "Importance", y="Variable") +
+  theme_minimal() +
+  coord_flip() 
+
+
+
+  ## Predicting and generating prediction file for bagging
+  predictSample <- test %>%
+    mutate(pobre_lab = ifelse(predict(best_forest, data = test, type = "prob") > 0.3,1,0)) %>%
+    dplyr::select(id,pobre_lab)
+  
+  
+  head(predictSample)
+  write.csv(predictSample,"predictions/classification_tree.csv", row.names = FALSE)
+
+
+
 #3: INCOME REGRESSION APPROACH -------------------------------------------------
+
+#Linear regression 
+set.seed(123)
+all_vars <- names(train)
+exclude_vars <- c("Ingtotug", "Ingtotugarr", "Pobre")
+right_hand_vars_exclude <- c("Ingtotug", "Ingtotugarr", "Pobre","Ingpcug")
+include_vars <- setdiff(all_vars, right_hand_vars_exclude)
+target_var <- "Ingpcug"
+formula_str <- Ingpcug ~ noficio_hogar + nmenores + H_Head_Educ_level + narriendo_o_pension + nestudiantes + nocupados + H_Head_Educ_level:edad_trabajar + num_cuartos + num_cuartos:Dominio + num_cuartos:Dominio:propia_pagada
+inc_mod1 <- as.formula(formula_str)
+inc_mod1
+train_inc <- train 
+K <- 10
+nrow(train_inc)/K
+
+train_inc<-train_inc  %>% mutate(fold=c(rep(1,16496),
+                              rep(2,16496),
+                              rep(3,16496),
+                              rep(4,16496),
+                              rep(5,16496),
+                              rep(6,16496),
+                              rep(7,16496),
+                              rep(8,16496),
+                              rep(9,16496),
+                              rep(10,16496)))
+
+fit1<- lm(inc_mod1, data= train_inc  %>% filter(fold!=1))
+yhat1<- predict(fit1,newdata=train_inc  %>% filter(fold==1) )
+
+db_train<-list()
+db_test<-list()
+
+for(i in 1:10){
+  db_train[[i]] <- train_inc %>% filter(fold != i) # Trains
+  db_test[[i]] <- train_inc %>% filter(fold == i) # Tests
+  
+  fit <- lm(inc_mod1, data = db_train[[i]])
+  # Storing predictions in a separate column
+  db_test[[i]]$Ingpcug_hat <- predict(fit, newdata = db_test[[i]])
+  # Classify as 'pobre' based on the threshold
+  db_test[[i]]$pobre_pred <- ifelse(db_test[[i]]$Ingpcug_hat < 300000, 1, 0)
+}
+
+precision_list <- list()
+recall_list <- list()
+f1_score_list <- list()
+
+for(i in 1:10){
+  # Assuming db_test[[i]] already has the 'pobre_pred' column from previous steps
+  true_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "Yes")
+  false_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "No")
+  false_negatives <- sum(db_test[[i]]$pobre_pred == 0 & db_test[[i]]$Pobre == "Yes")
+  
+  # Calculate precision and recall for each fold
+  precision <- true_positives / (true_positives + false_positives)
+  recall <- true_positives / (true_positives + false_negatives)
+  
+  # Handle cases where precision or recall are NaN due to division by zero
+  precision <- ifelse(is.nan(precision), 0, precision)
+  recall <- ifelse(is.nan(recall), 0, recall)
+  
+  # Calculate F1 score
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  # Handle case where F1 score is NaN due to division by zero in the formula
+  f1_score <- ifelse(is.nan(f1_score), 0, f1_score)
+  
+  # Store precision, recall, and F1 score
+  precision_list[[i]] <- precision
+  recall_list[[i]] <- recall
+  f1_score_list[[i]] <- f1_score
+}
+
+# Calculate average F1 score across folds
+mean_f1_score <- mean(unlist(f1_score_list), na.rm = TRUE)
+mean_f1_score
+
+
+calculate_f1_for_threshold <- function(threshold, train_inc, inc_mod1) {
+  db_train <- list()
+  db_test <- list()
+  f1_score_list <- vector("list", 10)
+  
+  for(i in 1:10) {
+    db_train[[i]] <- train_inc %>% filter(fold != i)
+    db_test[[i]] <- train_inc %>% filter(fold == i)
+    
+    fit <- lm(inc_mod1, data = db_train[[i]])
+    db_test[[i]]$Ingpcug_hat <- predict(fit, newdata = db_test[[i]])
+    db_test[[i]]$pobre_pred <- ifelse(db_test[[i]]$Ingpcug_hat < threshold, 1, 0)
+    
+    true_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "Yes")
+    false_positives <- sum(db_test[[i]]$pobre_pred == 1 & db_test[[i]]$Pobre == "No")
+    false_negatives <- sum(db_test[[i]]$pobre_pred == 0 & db_test[[i]]$Pobre == "Yes")
+    
+    precision <- true_positives / (true_positives + false_positives)
+    recall <- true_positives / (true_positives + false_negatives)
+    
+    precision[is.nan(precision)] <- 0
+    recall[is.nan(recall)] <- 0
+    
+    f1_score <- 2 * (precision * recall) / (precision + recall)
+    f1_score[is.nan(f1_score)] <- 0
+    
+    f1_score_list[[i]] <- f1_score
+  }
+  
+  mean_f1_score <- mean(unlist(f1_score_list), na.rm = TRUE)
+  return(mean_f1_score)
+}
+
+start_threshold <- 200000
+end_threshold <- 600000
+step_size <- 10000
+
+# Initialize variables to store the best threshold and its F1 score
+best_threshold <- start_threshold
+best_f1_score <- -Inf  # Start with the lowest possible value
+
+# Iterate over the interval in steps of 1000
+for(threshold in seq(from = start_threshold, to = end_threshold, by = step_size)) {
+  print(threshold)
+  current_f1_score <- calculate_f1_for_threshold(threshold, train_inc, inc_mod1)
+  
+  # Update the best threshold if the current one is better
+  if(current_f1_score > best_f1_score) {
+    best_threshold <- threshold
+    best_f1_score <- current_f1_score
+  }
+}
+
+# Output the best threshold and its F1 score
+best_threshold
+best_f1_score
+
+target_var <- "Ingpcug"
+initial_vars <- setdiff(names(train), c("Ingpcug", "Ingtotug", "Ingtotugarr", "Pobre"))
+max_vars_in_model <- 12
+
+current_vars <- character(0)
+best_f1_score <- 0
+best_formula <- ""
+
+for (step in 1:max_vars_in_model) {
+  print(step)
+  step_best_score <- 0
+  step_best_var <- NULL
+  step_best_formula <- ""
+  
+  candidate_vars <- setdiff(initial_vars, current_vars)
+  quadratic_terms <- paste0(candidate_vars, "^2")
+  interaction_terms <- character(0)
+  
+  if (length(current_vars) > 0) {
+    for (cv in current_vars) {
+      interaction_terms <- c(interaction_terms, paste0(cv, ":", candidate_vars))
+    }
+  }
+  
+  all_candidates <- c(candidate_vars, quadratic_terms, interaction_terms)
+  
+  for (var in all_candidates) {
+    formula_str <- paste(target_var, "~", paste(c(current_vars, var), collapse = " + "))
+    inc_mod <- as.formula(formula_str)
+    
+    f1_scores <- numeric(10)  # Placeholder for F1 scores for this variable
+    
+    for (i in 1:10) {
+      train_data <- train_inc %>% filter(fold != i)
+      test_data <- train_inc %>% filter(fold == i)
+      
+      fit <- lm(inc_mod, data = train_data)
+      test_data$Ingpcug_hat <- predict(fit, newdata = test_data)
+      test_data$pobre_pred <- ifelse(test_data$Ingpcug_hat < 390000, 1, 0)
+      
+      true_positives <- sum(test_data$pobre_pred == 1 & test_data$Pobre == "Yes")
+      false_positives <- sum(test_data$pobre_pred == 1 & test_data$Pobre == "No")
+      false_negatives <- sum(test_data$pobre_pred == 0 & test_data$Pobre == "Yes")
+      
+      precision <- ifelse(true_positives + false_positives > 0, true_positives / (true_positives + false_positives), 0)
+      recall <- ifelse(true_positives + false_negatives > 0, true_positives / (true_positives + false_negatives), 0)
+      
+      f1_scores[i] <- ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
+    }
+    
+    mean_f1_score <- mean(f1_scores, na.rm = TRUE)
+    
+    if (mean_f1_score > step_best_score) {
+      step_best_score <- mean_f1_score
+      step_best_var <- var
+      step_best_formula <- formula_str
+    }
+  }
+  
+  if (is.null(step_best_var)) break
+  
+  # Add the best variable or term from this step to the model
+  current_vars <- c(current_vars, step_best_var)
+  
+  # Update the best model if this step's model is better
+  if (step_best_score > best_f1_score) {
+    best_f1_score <- step_best_score
+    best_formula <- step_best_formula
+  } else {
+    # No improvement in F1 score, stop adding more variables
+    break
+  }
+}
+
+cat("Best Model Formula:", best_formula, "\n") #Ingpcug ~ noficio_hogar + nmenores + H_Head_Educ_level + narriendo_o_pension + nestudiantes + nocupados + H_Head_Educ_level:edad_trabajar + num_cuartos + num_cuartos:Dominio + num_cuartos:Dominio:propia_pagada 
+cat("Best F1 Score:", best_f1_score, "\n") #0.5927964 
+
+best_model <- lm(as.formula(best_formula), data = train)
+
+# Predict on the test dataset
+# Adjust the prediction logic according to your specific needs, especially the threshold used for classification
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(predict(best_model, newdata = .) < 390000, 1, 0)) %>%
+  dplyr::select(id, pobre_lab)%>%
+  rename(pobre = pobre_lab)  # Renaming pobre_lab to pobre
+
+# Display the first few rows to verify
+head(predictSample)
+
+# Write the predictions to a CSV file
+write.csv(predictSample, "regression_linearRegression.csv", row.names = FALSE)
+
+# Elastic Net 
+
+X <- model.matrix(~perc_ocupados + H_Head_Educ_level + nmenores + num_cuartos + H_Head_edad,train)
+X<-X[,-1] #remove constant
+y<-train$Ingpcug
+
+enet0 <- glmnet(
+  x = X,
+  y = y,
+  
+  alpha = 0.5 # Elastic Net penalty (0 for Ridge, 1 for Lasso)
+)
+coef(enet0, s= 0.1) 
+plot(enet0, xvar = "lambda")
+
+tuneGrid<- expand.grid(alpha= seq(0,1, 0.01), # between 0 and 1. 
+                       lambda=seq(0.1, 4, 0.1) ) 
+
+model_form <- paste(target_var, "~", paste(include_vars, collapse = " + "), 
+                    "+ (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2")
+
+trainControl <- trainControl( 
+  method = "cv",
+  number = 10)
+
+ENet<-train(model_form,
+            data=rose_train,
+            method = 'glmnet', 
+            trControl = trainControl,
+            tuneGrid = tuneGrid )  #specify the grid 
+
+plot(ENet)
+
 
 
 

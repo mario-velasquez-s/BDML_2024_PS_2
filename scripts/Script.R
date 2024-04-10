@@ -1474,9 +1474,7 @@ exclude_vars <- c("Ingtotug", "Ingtotugarr", "Pobre")
 right_hand_vars_exclude <- c("Ingtotug", "Ingtotugarr", "Pobre","Ingpcug")
 include_vars <- setdiff(all_vars, right_hand_vars_exclude)
 target_var <- "Ingpcug"
-formula_str <- paste(target_var, "~", paste(include_vars, collapse = " + "), 
-                     "+ (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2")
-
+formula_str <- Ingpcug ~ noficio_hogar + nmenores + H_Head_Educ_level + narriendo_o_pension + nestudiantes + nocupados + H_Head_Educ_level:edad_trabajar + num_cuartos + num_cuartos:Dominio + num_cuartos:Dominio:propia_pagada
 inc_mod1 <- as.formula(formula_str)
 inc_mod1
 train_inc <- train 
@@ -1578,7 +1576,7 @@ calculate_f1_for_threshold <- function(threshold, train_inc, inc_mod1) {
   return(mean_f1_score)
 }
 
-start_threshold <- 100000
+start_threshold <- 200000
 end_threshold <- 600000
 step_size <- 10000
 
@@ -1588,6 +1586,7 @@ best_f1_score <- -Inf  # Start with the lowest possible value
 
 # Iterate over the interval in steps of 1000
 for(threshold in seq(from = start_threshold, to = end_threshold, by = step_size)) {
+  print(threshold)
   current_f1_score <- calculate_f1_for_threshold(threshold, train_inc, inc_mod1)
   
   # Update the best threshold if the current one is better
@@ -1598,8 +1597,100 @@ for(threshold in seq(from = start_threshold, to = end_threshold, by = step_size)
 }
 
 # Output the best threshold and its F1 score
-best_threshold # 370000
-best_f1_score # 0.5479155
+best_threshold
+best_f1_score
+
+target_var <- "Ingpcug"
+initial_vars <- setdiff(names(train), c("Ingpcug", "Ingtotug", "Ingtotugarr", "Pobre"))
+max_vars_in_model <- 12
+
+current_vars <- character(0)
+best_f1_score <- 0
+best_formula <- ""
+
+for (step in 1:max_vars_in_model) {
+  print(step)
+  step_best_score <- 0
+  step_best_var <- NULL
+  step_best_formula <- ""
+  
+  candidate_vars <- setdiff(initial_vars, current_vars)
+  quadratic_terms <- paste0(candidate_vars, "^2")
+  interaction_terms <- character(0)
+  
+  if (length(current_vars) > 0) {
+    for (cv in current_vars) {
+      interaction_terms <- c(interaction_terms, paste0(cv, ":", candidate_vars))
+    }
+  }
+  
+  all_candidates <- c(candidate_vars, quadratic_terms, interaction_terms)
+  
+  for (var in all_candidates) {
+    formula_str <- paste(target_var, "~", paste(c(current_vars, var), collapse = " + "))
+    inc_mod <- as.formula(formula_str)
+    
+    f1_scores <- numeric(10)  # Placeholder for F1 scores for this variable
+    
+    for (i in 1:10) {
+      train_data <- train_inc %>% filter(fold != i)
+      test_data <- train_inc %>% filter(fold == i)
+      
+      fit <- lm(inc_mod, data = train_data)
+      test_data$Ingpcug_hat <- predict(fit, newdata = test_data)
+      test_data$pobre_pred <- ifelse(test_data$Ingpcug_hat < 390000, 1, 0)
+      
+      true_positives <- sum(test_data$pobre_pred == 1 & test_data$Pobre == "Yes")
+      false_positives <- sum(test_data$pobre_pred == 1 & test_data$Pobre == "No")
+      false_negatives <- sum(test_data$pobre_pred == 0 & test_data$Pobre == "Yes")
+      
+      precision <- ifelse(true_positives + false_positives > 0, true_positives / (true_positives + false_positives), 0)
+      recall <- ifelse(true_positives + false_negatives > 0, true_positives / (true_positives + false_negatives), 0)
+      
+      f1_scores[i] <- ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
+    }
+    
+    mean_f1_score <- mean(f1_scores, na.rm = TRUE)
+    
+    if (mean_f1_score > step_best_score) {
+      step_best_score <- mean_f1_score
+      step_best_var <- var
+      step_best_formula <- formula_str
+    }
+  }
+  
+  if (is.null(step_best_var)) break
+  
+  # Add the best variable or term from this step to the model
+  current_vars <- c(current_vars, step_best_var)
+  
+  # Update the best model if this step's model is better
+  if (step_best_score > best_f1_score) {
+    best_f1_score <- step_best_score
+    best_formula <- step_best_formula
+  } else {
+    # No improvement in F1 score, stop adding more variables
+    break
+  }
+}
+
+cat("Best Model Formula:", best_formula, "\n") #Ingpcug ~ noficio_hogar + nmenores + H_Head_Educ_level + narriendo_o_pension + nestudiantes + nocupados + H_Head_Educ_level:edad_trabajar + num_cuartos + num_cuartos:Dominio + num_cuartos:Dominio:propia_pagada 
+cat("Best F1 Score:", best_f1_score, "\n") #0.5927964 
+
+best_model <- lm(as.formula(best_formula), data = train)
+
+# Predict on the test dataset
+# Adjust the prediction logic according to your specific needs, especially the threshold used for classification
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(predict(best_model, newdata = .) < 390000, 1, 0)) %>%
+  dplyr::select(id, pobre_lab)%>%
+  rename(pobre = pobre_lab)  # Renaming pobre_lab to pobre
+
+# Display the first few rows to verify
+head(predictSample)
+
+# Write the predictions to a CSV file
+write.csv(predictSample, "regression_linearRegression.csv", row.names = FALSE)
 
 # Elastic Net 
 
@@ -1635,80 +1726,5 @@ ENet<-train(model_form,
 plot(ENet)
 
 
-##Linear regression second try:
 
-target_var <- "Ingpcug"
-initial_vars <- setdiff(names(train), c("Ingpcug", "Ingtotug", "Ingtotugarr", "Pobre"))
 
-# Define the maximum number of variables in the model
-max_vars_in_model <- 5
-
-# Initialize the model with no predictors
-current_vars <- character(0)
-best_f1_score <- 0
-best_formula <- ""
-
-# Begin forward stepwise selection
-for (step in 1:max_vars_in_model) {
-  step_best_score <- 0
-  step_best_var <- NULL
-  step_best_formula <- ""
-  
-  # Iterate over each variable not yet included in the model
-  for (var in setdiff(initial_vars, current_vars)) {
-    # Create a formula with the current variable added
-    formula_str <- paste(target_var, "~", paste(c(current_vars, var), collapse = " + "))
-    inc_mod <- as.formula(formula_str)
-    
-    # Placeholder for F1 scores for this variable
-    f1_scores <- numeric(5)
-    
-    # Cross-validation loop (simplified for brevity)
-    for (i in 1:10) {
-      train_data <- train_inc %>% filter(fold != i)
-      test_data <- train_inc %>% filter(fold == i)
-      
-      fit <- lm(inc_mod, data = train_data)
-      test_data$Ingpcug_hat <- predict(fit, newdata = test_data)
-      test_data$pobre_pred <- ifelse(test_data$Ingpcug_hat < 390000, 1, 0)
-      
-      true_positives <- sum(test_data$pobre_pred == 1 & test_data$Pobre == "Yes")
-      false_positives <- sum(test_data$pobre_pred == 1 & test_data$Pobre == "No")
-      false_negatives <- sum(test_data$pobre_pred == 0 & test_data$Pobre == "Yes")
-      
-      precision <- ifelse(true_positives + false_positives > 0, true_positives / (true_positives + false_positives), 0)
-      recall <- ifelse(true_positives + false_negatives > 0, true_positives / (true_positives + false_negatives), 0)
-      
-      f1_scores[i] <- ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
-    }
-    
-    # Calculate average F1 score for this model
-    mean_f1_score <- mean(f1_scores, na.rm = TRUE)
-    
-    # Check if this is the best score for this step
-    if (mean_f1_score > step_best_score) {
-      step_best_score <- mean_f1_score
-      step_best_var <- var
-      step_best_formula <- formula_str
-    }
-  }
-  
-  # If no improvement, exit the loop
-  if (is.null(step_best_var)) break
-  
-  # Update the model with the best variable for this step
-  current_vars <- c(current_vars, step_best_var)
-  
-  # Update the best model if this step's model is better
-  if (step_best_score > best_f1_score) {
-    best_f1_score <- step_best_score
-    best_formula <- step_best_formula
-  } else {
-    # No improvement in F1 score, stop adding more variables
-    break
-  }
-}
-
-# After completing the selection process, print the best model's formula and F1 score
-cat("Best Model Formula:", best_formula, "\n")
-cat("Best F1 Score:", best_f1_score, "\n")

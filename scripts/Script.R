@@ -1889,12 +1889,12 @@ write.csv(predictSample,"predictions/regression_forest.csv", row.names = FALSE)
 
 
 ## XGBoost
-grid_xbgoost <- expand.grid(nrounds = c(250),
-                            max_depth = c(8), 
-                            eta = c(0.01), 
+grid_xbgoost <- expand.grid(nrounds = c(900),
+                            max_depth = c(6), 
+                            eta = c(0.05), 
                             gamma = c(0), 
-                            min_child_weight = c(10,50),
-                            colsample_bytree = c(0.33,0.66),
+                            min_child_weight = c(10),
+                            colsample_bytree = c(0.66),
                             subsample = c(0.4))
 
 grid_xbgoost
@@ -1966,15 +1966,15 @@ pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
   graph_thresh_f1 <- ggplot(threshold_data, aes(x = threshold, y = f1_score)) +
     geom_line() +
     geom_point() +
-    labs(x = "Pov. Threshold", y = "F1 Score", title = "F1 Score vs. Pov. Threshold")
+    labs(x = "Pov. Threshold", y = "F1 Score", title = "CART models: F1 Score vs. Pov. Threshold")
   print(paste("Best threshold: ",best_pov_threshold))
   print(paste("Best F1: ",best_f1))
   graph_thresh_f1
 }
 
-#Trained CART models: tree_rpart2 (0.488897), ranger (0.585881), Xgboost_tree (0.585625)
-pov_threshold_estimator(tree_rpart2,testbase,150000,700000,50000)
-f1_estimator_cart(Xgboost_tree,testbase,330000)
+#Trained CART models: tree_rpart2 (0.488897), ranger (0.585881), Xgboost_tree (0.0.5979)
+pov_threshold_estimator(Xgboost_tree,testbase,300000,400000,10000)
+f1_estimator_cart(Xgboost_tree,testbase,340000)
 
 
 ## Predicting and generating prediction file for bagging

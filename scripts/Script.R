@@ -85,7 +85,9 @@ pre_process_personas<-  function(data, ...) {
       TRUE ~ 0                        # Otherwise
     )
   ) %>% 
-    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud, edad, ciudad, edad_trabajar, buscando_trabajo, incapacitado,oficio_hogar, estudiantes, arriendo_o_pension)
+    dplyr::select(id, Orden,mujer,H_Head,menor,EducLevel,ocupado, afiliadoSalud,
+                  edad, ciudad, edad_trabajar, buscando_trabajo, incapacitado,
+                  oficio_hogar, estudiantes, arriendo_o_pension)
   
   
 }
@@ -308,7 +310,7 @@ train_hogares<- train_hogares %>%
          cuartos_usados = P5010,
          total_personas = Nper
          ) %>% 
-  dplyr::select(id,Dominio,arrienda,Pobre, Ingtotug, Ingtotugarr, Ingpcug, propia_pagada,propia_enpago,en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas)
+  dplyr::select(id,Dominio,arrienda,Pobre, Ingtotug, Ingtotugarr, Ingpcug, propia_pagada,propia_enpago,en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas,Lp)
 
 
 test_hogares<- test_hogares %>% 
@@ -321,7 +323,7 @@ test_hogares<- test_hogares %>%
           cuartos_usados = P5010,
          total_personas = Nper
       ) %>% 
-  dplyr::select(id,Dominio,arrienda,propia_pagada,propia_enpago, en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas) 
+  dplyr::select(id,Dominio,arrienda, propia_pagada,propia_enpago, en_usufructo, sin_titulo, num_cuartos,cuartos_usados,total_personas, Lp) 
 
 ## Finally, Train & Test data
 train<- train_hogares %>% 
@@ -1511,16 +1513,41 @@ ggplot(imp2, aes(x = reorder(variables, importance) , y =importance )) +
   theme_minimal() +
   coord_flip() 
 
+##Best forest v 2.0
+set.seed(937946)
+fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
+fitControl<-trainControl(method ="cv",
+                         number=5,
+                         summaryFunction = fiveStats,
+                         classProbs = TRUE,
+                         verbose=FALSE,
+                         savePredictions = T)
+ranger_grid <- train(Pobre ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                              num_cuartos + H_Head_edad + H_Head_ocupado,
+                     data = trainbase,
+                     method = "ranger",
+                     trControl = fitControl,
+                     tuneGrid=expand.grid(mtry = c(3,4,6), 
+                                          splitrule = "gini",
+                                          min.node.size = c(500,1000)),
+                     importance="impurity")
 
+rf_pred <- predict(ranger_grid,
+                   newdata = testbase,
+                   type = "raw")
+aucval_rf <- Metrics::auc(actual = pobre0,predicted =rf_pred[,2])
+aucval_rf
 
   ## Predicting and generating prediction file for bagging
   predictSample <- test %>%
-    mutate(pobre_lab = ifelse(predict(best_forest, data = test, type = "prob") > 0.3,1,0)) %>%
+    mutate(pobre_lab = ifelse(predict(ranger_grid,
+                               newdata = test,
+                               type = "raw") == "Yes",1,0)) %>%
     dplyr::select(id,pobre_lab)
   
   
   head(predictSample)
-  write.csv(predictSample,"predictions/classification_tree.csv", row.names = FALSE)
+  write.csv(predictSample,"predictions/classification_forest.csv", row.names = FALSE)
 
 
 
@@ -1785,5 +1812,69 @@ ENet<-train(model_form,
 plot(ENet)
 
 
+## 4.5 Tree ------------------------------------------------------------------
+#Do until line 273, then...
+names(train)
+train <- train %>% dplyr::select(-c(Ingtotug,Ingtotugarr))
+
+## I set the reference value for the classification in Poor = "No"
+train <- train %>% mutate(Pobre=relevel(Pobre,ref="No"),
+                          ln_ing = log(Ingpcug+100),
+                          por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_ocupados,0),
+                          por_menores_head_mujer = ifelse(H_Head_mujer == "Yes",perc_menores,0),
+                          arrienda_head_mujer = ifelse(H_Head_mujer == "Yes",arrienda,0),
+                          educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0))
+test <- test %>% mutate(por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_ocupados,0),
+                        por_menores_head_mujer = ifelse(H_Head_mujer == "Yes",perc_menores,0),
+                        arrienda_head_mujer = ifelse(H_Head_mujer == "Yes",arrienda,0),
+                        educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0))
+
+set.seed(307795)
+fitControl<-trainControl(method ="cv",
+                         number=5)
+tree_rpart2 <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                       num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                       propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                       total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
+                       nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
+                       perc_edad_trabajar + perc_menores + perc_uso_cuartos + por_ocu_head_mujer +
+                       por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer,
+  data=train,
+  method = "rpart2",
+  trControl = fitControl,
+  tuneGrid = expand.grid(maxdepth = seq(1,10,1))
+)
+tree_rpart2
+prp(tree_rpart2$finalModel, under = TRUE, branch.lty = 2, yesno = 2)
+
+ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                       num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                       propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                       total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
+                       nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
+                       perc_edad_trabajar + perc_menores + perc_uso_cuartos +  por_ocu_head_mujer +
+                      por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer,
+                     data=train,
+                method = "ranger",
+                trControl = fitControl,
+                tuneGrid=expand.grid(mtry = c(8),
+                                     splitrule = "variance",
+                                     min.node.size = c(100)),
+                importance="impurity"
+)
+ranger
 
 
+inc_pred <- exp(predict(ranger,
+                   newdata = test,
+                   type = "raw"))
+
+
+## Predicting and generating prediction file for bagging
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(inc_pred <= Lp ,1,0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/regression_forest.csv", row.names = FALSE)

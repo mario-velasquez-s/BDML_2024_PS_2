@@ -670,6 +670,7 @@ smote_data_train <-smote_data_train  %>% mutate(fold=c(rep(1,36539),
       H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores* H_Head_mujer + nocupados + noafiliados + edad_trabajar +
       perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
 
+    #I create a function that estimates F1 using a linear regression model with cross-validation for the F1
 cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   l <- fold_size
   
@@ -1832,6 +1833,12 @@ test <- test %>% mutate(por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_o
                         educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0))
 
 set.seed(307795)
+inTrain <- createDataPartition(y = train$ln_ing,
+                               p = 0.7,
+                               list = FALSE)
+trainbase <- train[inTrain,]
+testbase <- train[-inTrain,]
+
 fitControl<-trainControl(method ="cv",
                          number=5)
 tree_rpart2 <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
@@ -1841,7 +1848,7 @@ tree_rpart2 <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                        nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
                        perc_edad_trabajar + perc_menores + perc_uso_cuartos + por_ocu_head_mujer +
                        por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer,
-  data=train,
+  data=trainbase,
   method = "rpart2",
   trControl = fitControl,
   tuneGrid = expand.grid(maxdepth = seq(1,10,1))
@@ -1856,7 +1863,7 @@ ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                        nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
                        perc_edad_trabajar + perc_menores + perc_uso_cuartos +  por_ocu_head_mujer +
                       por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer,
-                     data=train,
+                     data=trainbase,
                 method = "ranger",
                 trControl = fitControl,
                 tuneGrid=expand.grid(mtry = c(8),
@@ -1866,8 +1873,106 @@ ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
 )
 ranger
 
+inc_pred <- exp(predict(ranger,
+                        newdata = test,
+                        type = "raw"))
 
 
+## Predicting and generating prediction file for bagging
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(inc_pred <= Lp ,1,0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/regression_forest.csv", row.names = FALSE)
+
+
+## XGBoost
+grid_xbgoost <- expand.grid(nrounds = c(250),
+                            max_depth = c(8), 
+                            eta = c(0.01), 
+                            gamma = c(0), 
+                            min_child_weight = c(10,50),
+                            colsample_bytree = c(0.33,0.66),
+                            subsample = c(0.4))
+
+grid_xbgoost
+
+Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                        num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                        propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                        total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
+                        nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
+                        perc_edad_trabajar + perc_menores + perc_uso_cuartos +  por_ocu_head_mujer +
+                        por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer,
+                      data=trainbase,
+                      method = "xgbTree", 
+                      trControl = fitControl,
+                      tuneGrid=grid_xbgoost
+)        
+
+Xgboost_tree
+xgboost <- Xgboost_tree$finalModel
+
+f1_estimator_cart <- function(modelo,base, lp){
+  
+    #We predict incomebase[i, "Lp"]
+    inc_pred <- exp(predict(modelo, newdata = base))-100
+    
+    #We predict poverty status based on poverty line
+    pobre_pred <- vector("numeric", length = nrow(base))
+    for(i in 1:nrow(base)){
+      
+      pobre_pred[[i]] <- ifelse(inc_pred[[i]] <= lp,1,0)
+      
+    }
+    base$inc_pred <- inc_pred
+    base$pobre_pred <- pobre_pred
+    
+    #We estimate the F1
+      TP <- sum(base$Pobre == "Yes" & base$pobre_pred == 1)
+      TN <- sum(base$Pobre == "No" & base$pobre_pred == 0 )
+      FP <- sum(base$Pobre == "No" & base$pobre_pred == 1 )
+      FN <- sum(base$Pobre == "Yes" & base$pobre_pred == 0 )
+      
+      recall <- TP / (FN + TP)
+      precision <- TP / (TP + FP)
+      
+      F1 <- 2 * precision * recall / (precision + recall)
+      print(paste("F1:",round(F1, digits=3)))
+
+}
+
+pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
+  pov_threshold <- seq(min_thres,max_thres,pace)
+  best_f1 <- 0
+  best_pov_threshold <- 0
+  for(cut in 1:length(pov_threshold)){
+    f1_i <-f1_estimator_cart(modelo,base,pov_threshold[[cut]])
+    if(f1_i>best_f1){
+      best_f1 <- f1_i
+      best_pov_threshold <- pov_threshold[[cut]]
+    }
+  
+  }
+  print(paste("Best threshold: ",best_pov_threshold))
+  print(paste("Best F1: ",best_f1))
+}
+
+#Trained CART models: tree_rpart2 (0.436), ranger (0.547), Xgboost_tree (0.413)
+pov_threshold_estimator(ranger,testbase,200000,700000,50000)
+f1_estimator_cart(ranger,testbase)
+
+
+## Predicting and generating prediction file for bagging
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(inc_pred <= Lp ,1,0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/regression_forest.csv", row.names = FALSE)
 
 
 

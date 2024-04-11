@@ -1786,4 +1786,365 @@ plot(ENet)
 
 
 
+#############################################
+
+set.seed(21032024)
+
+if (!requireNamespace("glmnet", quietly = TRUE)) {
+  install.packages("glmnet")
+}
+library(glmnet)
+
+# Función de Elastic Net
+
+elastic_net_f1 <- function(train, selected_variables, selected_variables_test, corte, lambda, alpha) {
+  
+  # Sample rows for the training set
+  train_index <- sample(1:nrow(train), 0.7 * nrow(train))
+  
+  # Create the training and test datasets
+  train_net <- train[train_index, ]
+  test_net <- train[-train_index, ]
+  test_net_pobre <- train[-train_index, ]
+  
+  train_net <- train_net[, selected_variables, drop = FALSE]
+  test_net <- test_net[, selected_variables, drop = FALSE]
+  
+  for (variable in names(train_net)) {
+    if (is.factor(test_net[[variable]])) {
+      test_net[[variable]] <- as.integer(test_net[[variable]])
+      train_net[[variable]] <- as.integer(train_net[[variable]])
+    }
+  }
+  
+  # Fiting the Elastic Net model
+  x_train <- as.matrix(train_net[, -ncol(train_net)])  
+  y_train <- as.numeric(train_net$Ingpcug)
+  
+  enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda)
+  
+  # Predict on the testing dataset
+  inc_col_index <- which(names(test_net) == "Ingpcug")
+  x_test <- as.matrix(test_net[, -inc_col_index])
+  probabilities <- predict(enet_model, newx = x_test, type = "response")
+  
+  # Assuming a threshold of 0.9 for classification
+  predicted_classes <- ifelse(probabilities < corte, 1, 0)
+  
+  # Confusion matrix
+  actual_classes <- as.numeric(test_net_pobre$Pobre)
+  
+  precision <- sum(predicted_classes == 1 & actual_classes == 1) / sum(predicted_classes == 1)
+  recall <- sum(predicted_classes == 1 & actual_classes == 1) / sum(actual_classes == 1)
+  
+  
+  if (!is.na(precision) && !is.na(recall) && precision != 0 && recall != 0) {
+    F1_score <- 2 * (precision * recall) / (precision + recall)
+  } else {
+    F1_score <- 0
+  }
+  
+  #print(paste("F1 Score:", F1_score))
+  return(F1_score)
+}
+
+selected_variables <- c("Ingpcug",           
+                        "num_cuartos",
+                        "cuartos_usados",          
+                        "total_personas",
+                        "H_Head_edad",
+                        "H_Head_incapacitado",
+                        "H_Head_arriendo_o_pension",
+                        "nmujeres",
+                        "nmenores",                
+                        "nocupados",
+                        "noafiliados",
+                        "edad_trabajar",
+                        "nincapacitados",
+                        "noficio_hogar",
+                        "nestudiantes",             
+                        "narriendo_o_pension",
+                        "perc_mujer",          
+                        "perc_edad_trabajar",
+                        "perc_ocupados",           
+                        "perc_menores",
+                        "perc_uso_cuartos",         
+                        "perc_incapacitados",
+                        "perc_renta",              
+                        "perc_oficio_hogar")
+
+# ("Ingpcug",
+#   "propia_pagada", 
+#   "propia_enpago", 
+#   "en_usufructo",
+#   "sin_titulo",            
+#   "num_cuartos",
+#   "cuartos_usados",          
+#   "total_personas",
+#   "H_Head_mujer",
+#   "H_Head_Educ_level",
+#   "H_Head_ocupado",
+#   "H_Head_afiliadoSalud",
+#   "H_Head_edad",
+#   "H_Head_incapacitado",
+#   "H_Head_arriendo_o_pension",
+#   "nmujeres",
+#   "nmenores",                
+#   "nocupados",
+#   "noafiliados",
+#   "edad_trabajar",
+#   "nincapacitados",
+#   "noficio_hogar",
+#   "nestudiantes",             
+#   "narriendo_o_pension",
+#   "perc_mujer",          
+#   "perc_edad_trabajar",
+#   "perc_ocupados",           
+#   "perc_menores",
+#   "perc_uso_cuartos",         
+#   "perc_incapacitados",
+#   "perc_renta",              
+#   "perc_oficio_hogar")
+
+
+# Probamos la función
+elastic_net_f1(train, selected_variables, selected_variables_test, 100000, 4, 0.5)
+
+
+###############################
+
+alpha <- 0.5
+lambda <- 4
+corte <-100000
+
+selected_variables_test <- c("num_cuartos",
+                             "cuartos_usados",          
+                             "total_personas",
+                             "H_Head_edad",
+                             "H_Head_incapacitado",
+                             "H_Head_arriendo_o_pension",
+                             "nmujeres",
+                             "nmenores",                
+                             "nocupados",
+                             "noafiliados",
+                             "edad_trabajar",
+                             "nincapacitados",
+                             "noficio_hogar",
+                             "nestudiantes",             
+                             "narriendo_o_pension",
+                             "perc_mujer",          
+                             "perc_edad_trabajar",
+                             "perc_ocupados",           
+                             "perc_menores",
+                             "perc_uso_cuartos",         
+                             "perc_incapacitados",
+                             "perc_renta",              
+                             "perc_oficio_hogar")
+
+train_net <- train
+test_net <- test
+
+train_net <- train_net[, selected_variables, drop = FALSE]
+test_net <- test_net[, selected_variables_test, drop = FALSE]
+
+for (variable in names(train_net)) {
+  if (is.factor(test_net[[variable]])) {
+    test_net[[variable]] <- as.integer(test_net[[variable]])
+    train_net[[variable]] <- as.integer(train_net[[variable]])
+  }
+}
+
+# Fiting the Elastic Net model
+x_train <- as.matrix(train_net[, -ncol(train_net)])  
+y_train <- as.numeric(train_net$Ingpcug)
+
+enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda)
+
+# Predict on the testing dataset
+
+x_test <- as.matrix(test_net)
+probabilities <- predict(enet_model, newx = x_test, type = "response")
+
+# Assuming a threshold of 0.9 for classification
+predicted_classes <- ifelse(probabilities < corte, 1, 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###############################################
+
+alpha <- 0.5
+lambda <- 4
+corte <-100000
+
+train_index <- sample(1:nrow(train), 0.7 * nrow(train))
+
+# Create the training and test datasets
+train_net <- train[train_index, ]
+test_net <- train[-train_index, ]
+test_net_pobre <- train[-train_index, ]
+
+train_net <- train_net[, selected_variables, drop = FALSE]
+test_net <- test_net[, selected_variables, drop = FALSE]
+
+for (variable in names(train_net)) {
+  if (is.factor(test_net[[variable]])) {
+    test_net[[variable]] <- as.integer(test_net[[variable]])
+    train_net[[variable]] <- as.integer(train_net[[variable]])
+  }
+}
+
+# Fiting the Elastic Net model
+x_train <- as.matrix(train_net[, -ncol(train_net)])  
+y_train <- as.numeric(train_net$Ingpcug)
+
+enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda)
+
+# Predict on the testing dataset
+inc_col_index <- which(names(test_net) == "Ingpcug")
+x_test <- as.matrix(test_net[, -inc_col_index])
+probabilities <- predict(enet_model, newx = x_test, type = "response")
+
+# Assuming a threshold of 0.9 for classification
+predicted_classes <- ifelse(probabilities < corte, 1, 0)
+
+# Confusion matrix
+actual_classes <- as.numeric(test_net_pobre$Pobre)
+
+precision <- sum(predicted_classes == 1 & actual_classes == 1) / sum(predicted_classes == 1)
+recall <- sum(predicted_classes == 1 & actual_classes == 1) / sum(actual_classes == 1)
+
+
+if (!is.na(precision) && !is.na(recall) && precision != 0 && recall != 0) {
+  F1_score <- 2 * (precision * recall) / (precision + recall)
+} else {
+  F1_score <- 0
+}
+
+print(paste("F1 Score:", F1_score))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####################
+
+# Creamos una función que itere sobre valores de lambda, alpha y el punto de corte
+
+elastic_net_iter <- function(train, selected_variables, n){
+  alphas <- seq(0, 1, by = 0.025)
+  cortes <- seq(0, 1, by = 0.025)
+  lambdas <- seq(0, 5, by = 0.1)
+  f1_max = 0
+  alpha_opt <- 0
+  lambda_opt <- 0
+  corte_opt <- 0
+  f1_scores <- numeric(length(alphas)*length(lambdas)*length(cortes))
+  for (i in seq_along(alphas)){
+    for (j in seq_along(lambdas)){
+      for (k in seq_along(cortes)){
+        print(paste("i: ",i," - j: ",j," - k: ",k))
+        alpha <- alphas[i]
+        lambda <- lambdas[j]
+        corte <- cortes[k]
+        F1_value <- 0
+        for(m in 1:n) {
+          F1_value <- F1_value + elastic_net_f1(train, selected_variables, corte, lambda, alpha)
+        }
+        F1_value <- (F1_value/n)
+        if (F1_value > f1_max) {
+          f1_max <- F1_value
+          alpha_opt <- alpha
+          lambda_opt <- lambda
+          corte_opt <- corte
+        }
+        print(paste("F1 max: ", f1_max))
+      }
+    }
+  }
+  print("Optimal Values:")
+  print(paste("F1: ", f1_max))
+  print(paste("Alpha: ", alpha_opt))
+  print(paste("Lambda: ", lambda_opt))
+  print(paste("Corte: ", corte_opt))
+}
+
+elastic_net_iter(train, selected_variables, 3)
+
+#Result: F1: 0.4099015 - alpha: 0.025 - lambda: 0.9 - corte: 0.825
+
+elastic_net_f1(train, selected_variables, 0.825, 0.9, 0.025)
+
+elastic_net_iter_2 <- function(train, selected_variables, corte, lambda, alpha, n){
+  alphas <- seq(alpha-0.02, alpha+0.02, by = 0.0025)
+  cortes <- seq(corte-0.02, corte+0.02, by = 0.0025)
+  lambdas <- seq(lambda-0.05, lambda+0.05, by = 0.01)
+  f1_max = 0
+  alpha_opt <- 0
+  lambda_opt <- 0
+  corte_opt <- 0
+  f1_scores <- numeric(length(alphas)*length(lambdas)*length(cortes))
+  for (i in seq_along(alphas)){
+    for (j in seq_along(lambdas)){
+      for (k in seq_along(cortes)){
+        print(paste("i: ",i," - j: ",j," - k: ",k))
+        alpha <- alphas[i]
+        lambda <- lambdas[j]
+        corte <- cortes[k]
+        F1_value <- 0
+        for(m in 1:n) {
+          F1_value <- F1_value + elastic_net_f1(train, selected_variables, corte, lambda, alpha)
+        }
+        F1_value <- (F1_value/n)
+        if (F1_value > f1_max) {
+          f1_max <- F1_value
+          alpha_opt <- alpha
+          lambda_opt <- lambda
+          corte_opt <- corte
+        }
+        print(paste("F1 max: ", f1_max))
+      }
+    }
+  }
+  print("Optimal Values:")
+  print(paste("F1: ", f1_max))
+  print(paste("Alpha: ", alpha_opt))
+  print(paste("Lambda: ", lambda_opt))
+  print(paste("Corte: ", corte_opt))
+}
+
+
+elastic_net_iter_2(train, selected_variables, 0.825, 0.9, 0.025, 5)
+
+
 

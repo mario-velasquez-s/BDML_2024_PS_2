@@ -1864,6 +1864,11 @@ ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
 )
 ranger
 
+
+
+
+
+## 4.6 Elasticnet ------------------------------------------------------------------
 #############################################
 
 set.seed(21032024)

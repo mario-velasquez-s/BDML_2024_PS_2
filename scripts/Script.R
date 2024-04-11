@@ -36,7 +36,9 @@ p_load(rio, # import/export data
        Metrics,
        ranger,
        MLmetrics,
-       glmnet
+       glmnet,
+       gbm,
+       xgboost
        )
 
 # 1: Initial Data Manipulation -----------------------------------------------
@@ -1863,6 +1865,8 @@ ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                 importance="impurity"
 )
 ranger
+
+
 
 
 

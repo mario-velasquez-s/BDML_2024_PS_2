@@ -1940,7 +1940,7 @@ f1_estimator_cart <- function(modelo,base, lp){
       precision <- TP / (TP + FP)
       
       F1 <- 2 * precision * recall / (precision + recall)
-      print(paste("F1:",round(F1, digits=3)))
+      print(paste("F1:",round(F1, digits=6)))
 
 }
 
@@ -1948,21 +1948,33 @@ pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
   pov_threshold <- seq(min_thres,max_thres,pace)
   best_f1 <- 0
   best_pov_threshold <- 0
+  thresholds <- vector("numeric", length = length(pov_threshold))
+  f1_scores <- vector("numeric", length = length(pov_threshold))
   for(cut in 1:length(pov_threshold)){
     f1_i <-f1_estimator_cart(modelo,base,pov_threshold[[cut]])
+    thresholds[[cut]] <- pov_threshold[[cut]]
+    f1_scores[[cut]] <- f1_i
     if(f1_i>best_f1){
       best_f1 <- f1_i
       best_pov_threshold <- pov_threshold[[cut]]
     }
   
   }
+  threshold_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
+  
+  # Plot the relationship between threshold and F1 score
+  graph_thresh_f1 <- ggplot(threshold_data, aes(x = threshold, y = f1_score)) +
+    geom_line() +
+    geom_point() +
+    labs(x = "Pov. Threshold", y = "F1 Score", title = "F1 Score vs. Pov. Threshold")
   print(paste("Best threshold: ",best_pov_threshold))
   print(paste("Best F1: ",best_f1))
+  graph_thresh_f1
 }
 
-#Trained CART models: tree_rpart2 (0.436), ranger (0.547), Xgboost_tree (0.413)
-pov_threshold_estimator(ranger,testbase,200000,700000,50000)
-f1_estimator_cart(ranger,testbase)
+#Trained CART models: tree_rpart2 (0.488897), ranger (0.585881), Xgboost_tree (0.585625)
+pov_threshold_estimator(tree_rpart2,testbase,150000,700000,50000)
+f1_estimator_cart(Xgboost_tree,testbase,330000)
 
 
 ## Predicting and generating prediction file for bagging

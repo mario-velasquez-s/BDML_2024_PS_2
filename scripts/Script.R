@@ -40,8 +40,7 @@ p_load(rio, # import/export data
        gbm,
        xgboost,
        gtsummary,
-       Hmisc
-       )
+       Hmisc)
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -253,7 +252,7 @@ test_personas <- impute_Educlevel(test_personas)
 
 train_personas_nivel_hogar<- train_personas %>% 
   group_by(id) %>% 
-  summarize(nmujeres=sum(mujer,na.rm=TRUE),
+  dplyr::summarize(nmujeres=sum(mujer,na.rm=TRUE),
             nmenores=sum(menor,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
@@ -278,7 +277,7 @@ train_personas_hogar<- train_personas %>%
 
 test_personas_nivel_hogar<- test_personas %>% 
   group_by(id) %>% 
-  summarize(nmujeres=sum(mujer,na.rm=TRUE),
+  dplyr::summarize(nmujeres=sum(mujer,na.rm=TRUE),
             nmenores=sum(menor,na.rm=TRUE),
             nocupados=sum(ocupado,na.rm=TRUE),
             noafiliados = sum(afiliadoSalud, na.rm=TRUE),
@@ -514,10 +513,6 @@ label(train$perc_renta) <- "Porcentaje de hogares que pagan renta"
 label(train$perc_oficio_hogar) <- "Porcentaje de jefas de hogar dedicadas a labores domésticas"
 
 
-
-
-
-)
 
 # Descriptive statistics table and output to a LaTeX file
 

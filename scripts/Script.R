@@ -1031,7 +1031,7 @@ plot(elastic_model, main = "Elastic Net Regression")
   elastic_net_iter_2(train, selected_variables, 0.825, 0.9, 0.025, 5)
   
 ## 4.3: CART - Logit-------
-
+train_pobre_numeric <- dplyr::select(train, -Ingpcug, -Ingtotug, -Ingtotugarr)
 train_control <- trainControl(
   method = "cv",
   number = 10,
@@ -1042,7 +1042,7 @@ train_control <- trainControl(
 
 calculate_f1_and_plot <- function(model, data, class_variable = "Yes") {
   predicted_probabilities <- predict(model, newdata = data, type = "prob")[, class_variable]
-  thresholds <- seq(0, 1, by = 0.001)
+  thresholds <- seq(0, 1, by = 0.01)
   f1_scores <- numeric(length(thresholds))
   max_f1 <- 0
   best_threshold <- 0
@@ -1094,6 +1094,7 @@ calculate_f1_and_plot <- function(model, data, class_variable = "Yes") {
     labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
 }
 
+mod4 <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
 
 
 ### Model List
@@ -1147,9 +1148,9 @@ glm_3 <- train(
 
 #Model 4. F1 is  Threshold is 
 glm_4 <- train(
-  formula(model_form),
+  formula(mod4),
   method = "glm",
-  data = train,
+  data = train_pobre_numeric,
   family = "binomial",
   trControl = train_control
 )

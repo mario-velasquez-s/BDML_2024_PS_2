@@ -1205,7 +1205,7 @@ predictSample_glm_4$pobre <- ifelse(predictSample_glm_4$pobre_lab > 0.354, 1, 0)
 predictSample_glm_4 <- predictSample_glm_4[, c("id", "pobre")]
 head(predictSample_glm_4)
 
-write.csv(predictSample_glm_7,"predictions/classification_logit.csv", row.names = FALSE)
+write.csv(predictSample_glm_4,"classification_logit.csv", row.names = FALSE)
 
 
 
@@ -2085,7 +2085,8 @@ predictSample <- predictSample %>% mutate(pobre_lab = ifelse(inc_mix<=340000,1,0
 ## Mix between class_linearreg and xgboost
 ## Precicting and generating prediction file
 predictSample <- test %>%
-  mutate(pobre_class = ifelse(predict(lm(mod3, train), newdata=test) >= 0.33, 1, 0)) 
+  mutate(pobre_class = ifelse(predict(glm_4, newdata = test, type = "prob") >= 0.31, 1, 0))
+  
 
 inc_pred <- exp(predict(Xgboost_tree,
                         newdata = test,
@@ -2099,8 +2100,9 @@ predictSample <- predictSample %>%
   dplyr::select(id,pobre_lab)
 
 
+
 head(predictSample)
-write.csv(predictSample,"predictions/regression_mix_linearreg_xgboost.csv", row.names = FALSE)
+write.csv(predictSample,"regression_mix_linearreg_xgboost.csv", row.names = FALSE)
 
 
 

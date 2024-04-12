@@ -1950,8 +1950,8 @@ ENet<-train(model_form,
 plot(ENet)
 
 
-## 4.5 Tree ------------------------------------------------------------------
-#Do until line 273, then...
+## 4.5 CART's ------------------------------------------------------------------
+#Do until line 391, then...
 names(train)
 train <- train %>% dplyr::select(-c(Ingtotug,Ingtotugarr))
 
@@ -1964,7 +1964,19 @@ train <- train %>% mutate(Pobre=relevel(Pobre,ref="No"),
                           educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0),
                           H_Head_edad2 = H_Head_edad^2,
                           nmenores2 = nmenores^2,
-                          nocupados2 = nocupados^2
+                          nocupados2 = nocupados^2,
+                          Head_mujer_universitaria = ifelse(H_Head_Educ_level == "Universitaria" & H_Head_mujer == "Yes", 1,0),
+                          Head_hombre_universitaria = ifelse(H_Head_Educ_level == "Universitaria" & H_Head_mujer == "No", 1,0),
+                          Head_mujer_media = ifelse(H_Head_Educ_level == "Media" & H_Head_mujer == "Yes", 1,0),
+                          Head_hombre_media = ifelse(H_Head_Educ_level == "Media" & H_Head_mujer == "No", 1,0),
+                          Head_mujer_ninguno = ifelse(H_Head_Educ_level == "Ninguno" & H_Head_mujer == "Yes", 1,0),
+                          Head_hombre_ninguno = ifelse(H_Head_Educ_level == "Ninguno" & H_Head_mujer == "No", 1,0),
+                          Head_mujer_primaria = ifelse(H_Head_Educ_level == "Primaria" & H_Head_mujer == "Yes", 1,0),
+                          Head_hombre_primaria = ifelse(H_Head_Educ_level == "Primaria" & H_Head_mujer == "No", 1,0),
+                          Head_mujer_secundaria = ifelse(H_Head_Educ_level == "Secundaria" & H_Head_mujer == "Yes", 1,0),
+                          Head_hombre_secundaria = ifelse(H_Head_Educ_level == "Secundaria" & H_Head_mujer == "No", 1,0),
+                          Head_mujer_nmenores = ifelse(H_Head_mujer == "Yes", nmenores,0),
+                          Head_hombre_totalp = ifelse(H_Head_mujer == "No", total_personas,0)
                           )
 test <- test %>% mutate(por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_ocupados,0),
                         por_menores_head_mujer = ifelse(H_Head_mujer == "Yes",perc_menores,0),
@@ -1972,7 +1984,19 @@ test <- test %>% mutate(por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_o
                         educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0),
                         H_Head_edad2 = H_Head_edad^2,
                         nmenores2 = nmenores^2,
-                        nocupados2 = nocupados^2)
+                        nocupados2 = nocupados^2,
+                        Head_mujer_universitaria = ifelse(H_Head_Educ_level == "Universitaria" & H_Head_mujer == "Yes", 1,0),
+                        Head_hombre_universitaria = ifelse(H_Head_Educ_level == "Universitaria" & H_Head_mujer == "No", 1,0),
+                        Head_mujer_media = ifelse(H_Head_Educ_level == "Media" & H_Head_mujer == "Yes", 1,0),
+                        Head_hombre_media = ifelse(H_Head_Educ_level == "Media" & H_Head_mujer == "No", 1,0),
+                        Head_mujer_ninguno = ifelse(H_Head_Educ_level == "Ninguno" & H_Head_mujer == "Yes", 1,0),
+                        Head_hombre_ninguno = ifelse(H_Head_Educ_level == "Ninguno" & H_Head_mujer == "No", 1,0),
+                        Head_mujer_primaria = ifelse(H_Head_Educ_level == "Primaria" & H_Head_mujer == "Yes", 1,0),
+                        Head_hombre_primaria = ifelse(H_Head_Educ_level == "Primaria" & H_Head_mujer == "No", 1,0),
+                        Head_mujer_secundaria = ifelse(H_Head_Educ_level == "Secundaria" & H_Head_mujer == "Yes", 1,0),
+                        Head_hombre_secundaria = ifelse(H_Head_Educ_level == "Secundaria" & H_Head_mujer == "No", 1,0),
+                        Head_mujer_nmenores = ifelse(H_Head_mujer == "Yes", nmenores,0),
+                        Head_hombre_totalp = ifelse(H_Head_mujer == "No", total_personas,0))
 
 set.seed(307795)
 inTrain <- createDataPartition(y = train$ln_ing,
@@ -1983,6 +2007,10 @@ testbase <- train[-inTrain,]
 
 fitControl<-trainControl(method ="cv",
                          number=5)
+
+################################################################################
+################################# TREE #########################################
+################################################################################
 tree_rpart2 <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
                        num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
                        propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
@@ -1999,20 +2027,29 @@ tree_rpart2 <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
 tree_rpart2
 prp(tree_rpart2$finalModel, under = TRUE, branch.lty = 2, yesno = 2)
 
+
+
+################################################################################
+############################## RANDOM FOREST ###################################
+################################################################################
 ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
-                       num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
-                       propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
-                       total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
-                       nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
-                       perc_edad_trabajar + perc_menores + perc_uso_cuartos +  por_ocu_head_mujer +
-                      por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer+
-                  H_Head_edad2 + nmenores2 + nocupados2,
+                  num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                  propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                  total_personas + H_Head_mujer + H_Head_afiliadoSalud + 
+                  nmujeres +  nocupados + edad_trabajar + perc_mujer + 
+                  perc_edad_trabajar + perc_menores + perc_uso_cuartos + 
+                  Head_mujer_universitaria + Head_hombre_universitaria +
+                  Head_mujer_ninguno + Head_hombre_ninguno +
+                  Head_mujer_primaria + Head_hombre_primaria +
+                  Head_mujer_secundaria + Head_hombre_secundaria +
+                  + Head_mujer_media + Head_hombre_media + H_Head_edad2 + 
+                  nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp,
                      data=trainbase,
                 method = "ranger",
                 trControl = fitControl,
                 tuneGrid=expand.grid(mtry = c(8),
                                      splitrule = "variance",
-                                     min.node.size = c(100)),
+                                     min.node.size = c(10)),
                 importance="impurity"
 )
 ranger
@@ -2032,8 +2069,10 @@ head(predictSample)
 write.csv(predictSample,"predictions/regression_forest.csv", row.names = FALSE)
 
 
-## XGBoost
-grid_xbgoost <- expand.grid(nrounds = c(900),
+################################################################################
+############################## XGBOOST #########################################
+################################################################################
+grid_xbgoost <- expand.grid(nrounds = c(850),
                             max_depth = c(6), 
                             eta = c(0.05), 
                             gamma = c(0), 
@@ -2046,17 +2085,69 @@ grid_xbgoost
 Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
                         num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
                         propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
-                        total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
-                        nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
-                        perc_edad_trabajar + perc_menores + perc_uso_cuartos,
+                        total_personas + H_Head_mujer + H_Head_afiliadoSalud + 
+                        nmujeres + nocupados + edad_trabajar + perc_mujer + 
+                        perc_edad_trabajar + perc_menores + perc_uso_cuartos + 
+                        Head_mujer_universitaria + Head_hombre_universitaria +
+                        Head_mujer_ninguno + Head_hombre_ninguno +
+                        Head_mujer_primaria + Head_hombre_primaria +
+                        Head_mujer_secundaria + Head_hombre_secundaria +
+                        + Head_mujer_media + Head_hombre_media + H_Head_edad2 + 
+                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp,
                       data=trainbase,
                       method = "xgbTree", 
                       trControl = fitControl,
                       tuneGrid=grid_xbgoost
-)        
-
+)
 Xgboost_tree
-xgboost <- Xgboost_tree$finalModel
+
+####### IMPROVEMENT THROUGH MODEL SELECTION BY USING BEST SUBSET SELECTION ####
+model_selection <- ln_ing ~ perc_ocupados + H_Head_Educ_level:H_Head_mujer + nmenores:H_Head_mujer + 
+  num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+  propia_enpago + en_usufructo + cuartos_usados + 
+  total_personas:H_Head_mujer + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
+  nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
+  perc_edad_trabajar + perc_menores + perc_uso_cuartos
+bestsub <- regsubsets(model_selection,
+                      data = trainbase,
+                      nvmax = 35)
+summary(bestsub)
+names(coef(bestsub,25))
+
+max_nvars= bestsub[["np"]]-1  ## minus one because it counts the intercept.
+set.seed(307795)
+predict.regsubsets<- function (object , newdata , id, ...) {
+  form<- model_selection
+  mat <- model.matrix (form , newdata) ## model matrix in the test data
+  coefi <- coef(object , id = id) ## coefficient for the best model with id vars
+  xvars <- names (coefi)  ## variables in the model
+  mat[, xvars] %*% coefi  ## prediction 
+  
+}
+k <- 5
+n <- nrow (trainbase)
+folds <- sample (rep (1:k, length = n))
+cv.errors <- matrix (NA, k, max_nvars,
+                     dimnames = list (NULL , paste (1:max_nvars)))
+for (j in 1:k) {
+  best_fit <- regsubsets(model_selection,
+                         data = trainbase[folds != j, ],
+                         nvmax = max_nvars)
+  for (i in 1:max_nvars) {
+    pred <- predict(best_fit, trainbase[folds == j, ], id = i)
+    cv.errors[j, i] <-
+      mean ((trainbase$ln_ing[folds == j] - pred)^2)
+  }
+}
+mean.cv.errors <- apply (cv.errors , 2, mean)
+plot (mean.cv.errors , type = "b")
+which.min (mean.cv.errors) ## Best model is with 25 variables. 
+                            #In the graph is clear that from 20 variables the gains in MSE are minimum.
+
+########################## END MODEL SELECTION  FOR CART########################
+
+
+############### IMPROVEMENT THROUGH INCOME THRESHOLD MAXIMIZING F1 #############
 
 f1_estimator_cart <- function(modelo,base, lp){
   
@@ -2115,11 +2206,13 @@ pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
   graph_thresh_f1
 }
 
-#Trained CART models: tree_rpart2 (0.488897), ranger (0.585881), Xgboost_tree (0.599009)
+#Trained CART models: tree_rpart2 (0.487608), ranger (0.583853), Xgboost_tree (0.596281)
 pov_threshold_estimator(Xgboost_tree,testbase,300000,400000,10000)
-f1_estimator_cart(Xgboost_tree,testbase,340000) ## XGBoost is my best CART model
+#f1_estimator_cart(Xgboost_tree,testbase,340000) ## XGBoost is my best CART model
+############### END IMPROVEMENT THROUGH INCOME THRESHOLD #############
 
 
+##################### PREDICTION OF BEST CART #################################
 inc_pred <- exp(predict(Xgboost_tree,
                         newdata = test,
                         type = "raw"))
@@ -2131,7 +2224,7 @@ predictSample <- test %>%
 
 head(predictSample)
 write.csv(predictSample,"predictions/regression_xgboost.csv", row.names = FALSE)
-
+##################### END PREDICTION OF BEST CART ##############################
 
 
 

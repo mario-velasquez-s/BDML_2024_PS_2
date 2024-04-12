@@ -1875,7 +1875,7 @@ library(glmnet)
 
 # Función de Elastic Net
 
-elastic_net_f1 <- function(train, selected_variables, selected_variables_test, corte, lambda, alpha) {
+elastic_net_f1 <- function(train, selected_variables, corte, lambda, alpha) {
   
   # Sample rows for the training set
   train_index <- sample(1:nrow(train), 0.7 * nrow(train))
@@ -1986,7 +1986,7 @@ selected_variables <- c("Ingpcug",
 
 
 # Probamos la función
-elastic_net_f1(train, selected_variables, selected_variables_test, 100000, 4, 0.5)
+elastic_net_f1(train, selected_variables, 100000, 4, 0.5)
 
 
 ###############################
@@ -2044,8 +2044,10 @@ x_test <- as.matrix(test_net)
 probabilities <- predict(enet_model, newx = x_test, type = "response")
 
 # Assuming a threshold of 0.9 for classification
-predicted_classes <- ifelse(probabilities < corte, 1, 0)
+test$predicted_classes <- ifelse(probabilities < corte, 1, 0)
 
+selected_columns <- test[, c("id", "predicted_classes")]
+write.csv(selected_columns,"./regression_elastic_net_lm.csv", row.names = FALSE)
 
 
 
@@ -2111,18 +2113,3 @@ if (!is.na(precision) && !is.na(recall) && precision != 0 && recall != 0) {
 }
 
 print(paste("F1 Score:", F1_score))
-
-
-inc_pred <- exp(predict(ranger,
-                   newdata = test,
-                   type = "raw"))
-
-
-## Predicting and generating prediction file for bagging
-predictSample <- test %>%
-  mutate(pobre_lab = ifelse(inc_pred <= Lp ,1,0)) %>%
-  dplyr::select(id,pobre_lab)
-
-
-head(predictSample)
-write.csv(predictSample,"predictions/regression_forest.csv", row.names = FALSE)

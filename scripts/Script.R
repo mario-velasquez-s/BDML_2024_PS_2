@@ -714,7 +714,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   
 
 ## I choose models minimizing MSE
-cv_mse_f1(train,k,mod5,0.5)
+cv_mse_f1(train,k,mod3,0.5)
 
 
 ## Choosing the best thresholds
@@ -2081,10 +2081,25 @@ predictSample <- predictSample %>% mutate(inc_mix = 1*inc1 + (1-0)*inc2)
 predictSample <- predictSample %>% mutate(pobre_lab = ifelse(inc_mix<=340000,1,0))%>%
   dplyr::select(id,pobre_lab)
 
+## Mix between class_linearreg and xgboost
+## Precicting and generating prediction file
+predictSample <- test %>%
+  mutate(pobre_class = ifelse(predict(lm(mod3, train), newdata=test) >= 0.33, 1, 0)) 
+
+inc_pred <- exp(predict(Xgboost_tree,
+                        newdata = test,
+                        type = "raw"))
+
+predictSample <- predictSample %>%
+  mutate(pobre_reg = ifelse(inc_pred <= 330000 ,1,0))
+
+predictSample <- predictSample %>%
+  mutate(pobre_lab = ifelse(pobre_reg ==1 | pobre_class == 1,1,0))%>%
+  dplyr::select(id,pobre_lab)
 
 
 head(predictSample)
-write.csv(predictSample,"predictions/regression_mix_CART_elasnet.csv", row.names = FALSE)
+write.csv(predictSample,"predictions/regression_mix_linearreg_xgboost.csv", row.names = FALSE)
 
 
 

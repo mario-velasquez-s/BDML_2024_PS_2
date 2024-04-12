@@ -37,12 +37,10 @@ p_load(rio, # import/export data
        ranger,
        MLmetrics,
        glmnet,
-<<<<<<< Updated upstream
        gbm,
-       xgboost
-=======
-       gtsummary
->>>>>>> Stashed changes
+       xgboost,
+       gtsummary,
+       Hmisc
        )
 
 # 1: Initial Data Manipulation -----------------------------------------------
@@ -477,18 +475,49 @@ rm(list = objects_to_remove)
 names(train)
 
 
-# Define the variables
-des_vars <- c(.)
-
-
 # List of variables
-des_vars <- c("arrienda", "Pobre", "Ingtotug", "Ingtotugarr", "Ingpcug",
+des_vars <- c("arrienda", "Ingtotug", "Ingtotugarr", "Ingpcug",
               "propia_pagada", "propia_enpago", "en_usufructo", "sin_titulo",
               "num_cuartos", "cuartos_usados", "total_personas", "H_Head_mujer",
               "H_Head_Educ_level", "H_Head_ocupado", "H_Head_afiliadoSalud",
               "H_Head_edad", "H_Head_incapacitado", "H_Head_arriendo_o_pension",
               "perc_mujer", "perc_edad_trabajar", "perc_ocupados", "perc_menores",
               "perc_uso_cuartos", "perc_incapacitados", "perc_renta", "perc_oficio_hogar")
+
+
+# Assigning labels to variables in the train dataset
+label(train$arrienda) <- "Arriendo"
+label(train$Ingtotug) <- "Ingreso total del hogar"
+label(train$Ingtotugarr) <- "Ingreso total del hogar por arriendo"
+label(train$Ingpcug) <- "Ingreso per cápita"
+label(train$propia_pagada) <- "Propiedad propia pagada"
+label(train$propia_enpago) <- "Propiedad propia en pago"
+label(train$en_usufructo) <- "En usufructo"
+label(train$sin_titulo) <- "Sin título"
+label(train$num_cuartos) <- "Número de cuartos"
+label(train$cuartos_usados) <- "Cuartos usados"
+label(train$total_personas) <- "Total de personas"
+label(train$H_Head_mujer) <- "Jefa de hogar es mujer"
+label(train$H_Head_Educ_level) <- "Nivel educativo de la jefa de hogar"
+label(train$H_Head_ocupado) <- "Jefa de hogar está ocupada"
+label(train$H_Head_afiliadoSalud) <- "Jefa de hogar afiliada a salud"
+label(train$H_Head_edad) <- "Edad de la jefa de hogar"
+label(train$H_Head_incapacitado) <- "Jefa de hogar está incapacitada"
+label(train$H_Head_arriendo_o_pension) <- "Jefa de hogar paga arriendo o pensión"
+label(train$perc_mujer) <- "Porcentaje de mujeres"
+label(train$perc_edad_trabajar) <- "Porcentaje de población en edad de trabajar"
+label(train$perc_ocupados) <- "Porcentaje de personas ocupadas"
+label(train$perc_menores) <- "Porcentaje de menores de edad"
+label(train$perc_uso_cuartos) <- "Porcentaje de cuartos en uso"
+label(train$perc_incapacitados) <- "Porcentaje de incapacitados"
+label(train$perc_renta) <- "Porcentaje de hogares que pagan renta"
+label(train$perc_oficio_hogar) <- "Porcentaje de jefas de hogar dedicadas a labores domésticas"
+
+
+
+
+
+)
 
 # Descriptive statistics table and output to a LaTeX file
 
@@ -499,15 +528,12 @@ table2 <-
     by = Pobre, # split table by group
     missing = "no" # don't list missing data separately
   )  %>%
-  add_n() %>% # add column with total number of non-missing observations
   add_p() %>% # test for a difference between groups
   modify_header(label = "**Variable**") %>% # update the column header
   bold_labels() %>%
   as_gt() %>%
   gt::as_latex()
 
-
-%>%
 
 
 stargazer::stargazer(as.data.frame(train[, des_vars]), 
@@ -567,8 +593,8 @@ train_pobre_numeric <- train_pobre_numeric %>%
 
 model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2 + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + 
                                                                                                                                                                                                                                     H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + 
-                                                                                                                                                                                                                                    perc_ocupados + perc_menores + perc_uso_cuartos)^3
-
+                                                                                                                                                                                                                                perc_ocupados + perc_menores + perc_uso_cuartos)^3
+lm(model_form, data = train)
 
 backward_model <- regsubsets(model_form, ## formula
                              data = train_pobre_numeric, ## data frame Note we are using the training sample
@@ -623,7 +649,7 @@ maxF1ModelIndex_back <- which.max(mean.f1Scores_back)
 plot(mean.f1Scores_back, type = "b", main = "Mean F1 Score Backward", xlab = "Number of Variables", ylab = "Mean F1 Score")
 maxF1ModelIndex_back
 
-### Forward subset selection
+### Forward subset selection-----
 
 cv.f1Scores_for <- matrix(NA, k, max_nvars, dimnames = list(NULL, paste(1:max_nvars)))
 

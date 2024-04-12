@@ -36,7 +36,9 @@ p_load(rio, # import/export data
        Metrics,
        ranger,
        MLmetrics,
-       glmnet
+       glmnet,
+       gbm,
+       xgboost
        )
 
 # 1: Initial Data Manipulation -----------------------------------------------
@@ -668,6 +670,7 @@ smote_data_train <-smote_data_train  %>% mutate(fold=c(rep(1,36539),
       H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores* H_Head_mujer + nocupados + noafiliados + edad_trabajar +
       perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
 
+    #I create a function that estimates F1 using a linear regression model with cross-validation for the F1
 cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   l <- fold_size
   
@@ -711,7 +714,7 @@ cv_mse_f1 <- function(base,fold_size,modelo,c,...){
   
 
 ## I choose models minimizing MSE
-cv_mse_f1(train,k,mod5,0.5)
+cv_mse_f1(train,k,mod3,0.5)
 
 
 ## Choosing the best thresholds
@@ -1028,7 +1031,7 @@ plot(elastic_model, main = "Elastic Net Regression")
   elastic_net_iter_2(train, selected_variables, 0.825, 0.9, 0.025, 5)
   
 ## 4.3: CART - Logit-------
-
+train_pobre_numeric <- dplyr::select(train, -Ingpcug, -Ingtotug, -Ingtotugarr)
 train_control <- trainControl(
   method = "cv",
   number = 10,
@@ -1039,7 +1042,7 @@ train_control <- trainControl(
 
 calculate_f1_and_plot <- function(model, data, class_variable = "Yes") {
   predicted_probabilities <- predict(model, newdata = data, type = "prob")[, class_variable]
-  thresholds <- seq(0, 1, by = 0.001)
+  thresholds <- seq(0, 1, by = 0.01)
   f1_scores <- numeric(length(thresholds))
   max_f1 <- 0
   best_threshold <- 0
@@ -1091,6 +1094,7 @@ calculate_f1_and_plot <- function(model, data, class_variable = "Yes") {
     labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
 }
 
+mod4 <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2
 
 
 ### Model List
@@ -1144,9 +1148,9 @@ glm_3 <- train(
 
 #Model 4. F1 is  Threshold is 
 glm_4 <- train(
-  formula(model_form),
+  formula(mod4),
   method = "glm",
-  data = train,
+  data = train_pobre_numeric,
   family = "binomial",
   trControl = train_control
 )
@@ -1193,15 +1197,15 @@ calculate_f1_and_plot(glm_7, train)
 
 ### Exporting predictions
 
-predictSample_glm_7 <- test %>%
-  mutate(pobre_lab = predict(glm_7, newdata = test, type = "prob") %>%
+predictSample_glm_4 <- test %>%
+  mutate(pobre_lab = predict(glm_4, newdata = test, type = "prob") %>%
            `[[`("Yes")) %>%
   dplyr::select(id,pobre_lab)
-predictSample_glm_7$pobre <- ifelse(predictSample_glm_7$pobre_lab > 0.354, 1, 0)
-predictSample_glm_7 <- predictSample_glm_7[, c("id", "pobre")]
-predictSample_glm_7
+predictSample_glm_4$pobre <- ifelse(predictSample_glm_4$pobre_lab > 0.354, 1, 0)
+predictSample_glm_4 <- predictSample_glm_4[, c("id", "pobre")]
+head(predictSample_glm_4)
 
-write.csv(predictSample_glm_7,"classification_logit.csv", row.names = FALSE)
+write.csv(predictSample_glm_7,"predictions/classification_logit.csv", row.names = FALSE)
 
 
 
@@ -1823,13 +1827,26 @@ train <- train %>% mutate(Pobre=relevel(Pobre,ref="No"),
                           por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_ocupados,0),
                           por_menores_head_mujer = ifelse(H_Head_mujer == "Yes",perc_menores,0),
                           arrienda_head_mujer = ifelse(H_Head_mujer == "Yes",arrienda,0),
-                          educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0))
+                          educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0),
+                          H_Head_edad2 = H_Head_edad^2,
+                          nmenores2 = nmenores^2,
+                          nocupados2 = nocupados^2
+                          )
 test <- test %>% mutate(por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_ocupados,0),
                         por_menores_head_mujer = ifelse(H_Head_mujer == "Yes",perc_menores,0),
                         arrienda_head_mujer = ifelse(H_Head_mujer == "Yes",arrienda,0),
-                        educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0))
+                        educ_level_head_mujer = ifelse(H_Head_mujer == "Yes",H_Head_Educ_level,0),
+                        H_Head_edad2 = H_Head_edad^2,
+                        nmenores2 = nmenores^2,
+                        nocupados2 = nocupados^2)
 
 set.seed(307795)
+inTrain <- createDataPartition(y = train$ln_ing,
+                               p = 0.7,
+                               list = FALSE)
+trainbase <- train[inTrain,]
+testbase <- train[-inTrain,]
+
 fitControl<-trainControl(method ="cv",
                          number=5)
 tree_rpart2 <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
@@ -1838,8 +1855,9 @@ tree_rpart2 <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                        total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
                        nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
                        perc_edad_trabajar + perc_menores + perc_uso_cuartos + por_ocu_head_mujer +
-                       por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer,
-  data=train,
+                       por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer +
+                       H_Head_edad2 + nmenores2 + nocupados2,
+  data=trainbase,
   method = "rpart2",
   trControl = fitControl,
   tuneGrid = expand.grid(maxdepth = seq(1,10,1))
@@ -1853,8 +1871,9 @@ ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                        total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
                        nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
                        perc_edad_trabajar + perc_menores + perc_uso_cuartos +  por_ocu_head_mujer +
-                      por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer,
-                     data=train,
+                      por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer+
+                  H_Head_edad2 + nmenores2 + nocupados2,
+                     data=trainbase,
                 method = "ranger",
                 trControl = fitControl,
                 tuneGrid=expand.grid(mtry = c(8),
@@ -1864,6 +1883,229 @@ ranger <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
 )
 ranger
 
+inc_pred <- exp(predict(ranger,
+                        newdata = test,
+                        type = "raw"))
+
+
+## Predicting and generating prediction file for bagging
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(inc_pred <= Lp ,1,0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/regression_forest.csv", row.names = FALSE)
+
+
+## XGBoost
+grid_xbgoost <- expand.grid(nrounds = c(900),
+                            max_depth = c(6), 
+                            eta = c(0.05), 
+                            gamma = c(0), 
+                            min_child_weight = c(10),
+                            colsample_bytree = c(0.66),
+                            subsample = c(0.4))
+
+grid_xbgoost
+
+Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                        num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                        propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                        total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
+                        nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
+                        perc_edad_trabajar + perc_menores + perc_uso_cuartos,
+                      data=trainbase,
+                      method = "xgbTree", 
+                      trControl = fitControl,
+                      tuneGrid=grid_xbgoost
+)        
+
+Xgboost_tree
+xgboost <- Xgboost_tree$finalModel
+
+f1_estimator_cart <- function(modelo,base, lp){
+  
+    #We predict incomebase[i, "Lp"]
+    inc_pred <- exp(predict(modelo, newdata = base))-100
+    
+    #We predict poverty status based on poverty line
+    pobre_pred <- vector("numeric", length = nrow(base))
+    for(i in 1:nrow(base)){
+      
+      pobre_pred[[i]] <- ifelse(inc_pred[[i]] <= lp,1,0)
+      
+    }
+    base$inc_pred <- inc_pred
+    base$pobre_pred <- pobre_pred
+    
+    #We estimate the F1
+      TP <- sum(base$Pobre == "Yes" & base$pobre_pred == 1)
+      TN <- sum(base$Pobre == "No" & base$pobre_pred == 0 )
+      FP <- sum(base$Pobre == "No" & base$pobre_pred == 1 )
+      FN <- sum(base$Pobre == "Yes" & base$pobre_pred == 0 )
+      
+      recall <- TP / (FN + TP)
+      precision <- TP / (TP + FP)
+      
+      F1 <- 2 * precision * recall / (precision + recall)
+      print(paste("F1:",round(F1, digits=6)))
+
+}
+
+pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
+  pov_threshold <- seq(min_thres,max_thres,pace)
+  best_f1 <- 0
+  best_pov_threshold <- 0
+  thresholds <- vector("numeric", length = length(pov_threshold))
+  f1_scores <- vector("numeric", length = length(pov_threshold))
+  for(cut in 1:length(pov_threshold)){
+    f1_i <-f1_estimator_cart(modelo,base,pov_threshold[[cut]])
+    thresholds[[cut]] <- pov_threshold[[cut]]
+    f1_scores[[cut]] <- f1_i
+    if(f1_i>best_f1){
+      best_f1 <- f1_i
+      best_pov_threshold <- pov_threshold[[cut]]
+    }
+  
+  }
+  threshold_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
+  
+  # Plot the relationship between threshold and F1 score
+  graph_thresh_f1 <- ggplot(threshold_data, aes(x = threshold, y = f1_score)) +
+    geom_line() +
+    geom_point() +
+    labs(x = "Pov. Threshold", y = "F1 Score", title = "CART models: F1 Score vs. Pov. Threshold")
+  print(paste("Best threshold: ",best_pov_threshold))
+  print(paste("Best F1: ",best_f1))
+  graph_thresh_f1
+}
+
+#Trained CART models: tree_rpart2 (0.488897), ranger (0.585881), Xgboost_tree (0.599009)
+pov_threshold_estimator(Xgboost_tree,testbase,300000,400000,10000)
+f1_estimator_cart(Xgboost_tree,testbase,340000) ## XGBoost is my best CART model
+
+
+inc_pred <- exp(predict(Xgboost_tree,
+                        newdata = test,
+                        type = "raw"))
+
+predictSample <- test %>%
+  mutate(pobre_lab = ifelse(inc_pred <= 330000 ,1,0)) %>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/regression_xgboost.csv", row.names = FALSE)
+
+
+
+
+##Elasticnet
+elasnet <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                   num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                   propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                   total_personas + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
+                   nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
+                   perc_edad_trabajar + perc_menores + perc_uso_cuartos +  por_ocu_head_mujer +
+                   por_menores_head_mujer + arrienda_head_mujer + educ_level_head_mujer +
+                   H_Head_edad2 + nmenores2 + nocupados2,
+                data=trainbase,
+                method = "glmnet",
+                trControl = fitControl,
+                tuneGrid=expand.grid(
+                  alpha = seq(0,0.5,by=.01),
+                  lambda =seq(0, 0.5, length = 10)
+                )
+                
+)
+elasnet
+pov_threshold_estimator(elasnet,testbase,300000,400000,10000) #best_F1: 0.577669
+
+inc_elasnet <- predict(elasnet, newdata = testbase)
+
+
+
+mixer <- function(base){
+  
+  inc_xgboost <- exp(predict(Xgboost_tree, newdata = base))
+  inc_elasnet <- exp(predict(elasnet, newdata = base))
+  base$inc1 <- inc_xgboost
+  base$inc2 <- inc_elasnet
+  
+  best_f1 <- 0
+  best_a <- 0
+  a_b <- seq(0,1,length=10)
+  as <- vector("numeric", length = length(a_b))
+  f1_scores <- vector("numeric", length = length(a_b))
+  for(i in 1:length(a_b)){
+    a<-a_b[[i]]
+    b<-1-a
+    base <- base %>% mutate(inc_mix = a*base$inc1 + b*base$inc2)
+    base <- base %>% mutate(pobre_pred = ifelse(inc_mix<=340000,1,0))
+    
+    #We estimate the F1
+    TP <- sum(base$Pobre == "Yes" & base$pobre_pred == 1)
+    TN <- sum(base$Pobre == "No" & base$pobre_pred == 0 )
+    FP <- sum(base$Pobre == "No" & base$pobre_pred == 1 )
+    FN <- sum(base$Pobre == "Yes" & base$pobre_pred == 0 )
+    
+    recall <- TP / (FN + TP)
+    precision <- TP / (TP + FP)
+    
+    f1_i <- 2 * precision * recall / (precision + recall)
+    as[[i]] <- a
+    f1_scores[[i]] <- f1_i
+    if(f1_i>best_f1){
+      best_f1 <- f1_i
+      best_a <- a
+    }
+  }
+  a_data <- data.frame(a_s = as, f1_score = f1_scores)
+  graph_a_f1 <- ggplot(a_data, aes(x = a_s, y = f1_score)) +
+    geom_point() +
+    labs(x = "Peso XGboost", y = "F1 Score", title = "Mixer: F1 Score vs. weight XGBoost")
+  print(paste("Best a: ",best_a))
+  print(paste("Best F1: ",best_f1))
+  graph_a_f1
+}
+
+mixer(testbase) #0.5981276
+
+inc_xgboost <- exp(predict(Xgboost_tree, newdata = test))
+inc_elasnet <- exp(predict(elasnet, newdata = test))
+predictSample <- test %>% mutate(inc1 = inc_xgboost,
+                                 inc2 = inc_elasnet)
+
+                                 
+predictSample <- predictSample %>% mutate(inc_mix = 1*inc1 + (1-0)*inc2)
+predictSample <- predictSample %>% mutate(pobre_lab = ifelse(inc_mix<=340000,1,0))%>%
+  dplyr::select(id,pobre_lab)
+
+## Mix between class_linearreg and xgboost
+## Precicting and generating prediction file
+predictSample <- test %>%
+  mutate(pobre_class = ifelse(predict(lm(mod3, train), newdata=test) >= 0.33, 1, 0)) 
+
+inc_pred <- exp(predict(Xgboost_tree,
+                        newdata = test,
+                        type = "raw"))
+
+predictSample <- predictSample %>%
+  mutate(pobre_reg = ifelse(inc_pred <= 330000 ,1,0))
+
+predictSample <- predictSample %>%
+  mutate(pobre_lab = ifelse(pobre_reg ==1 | pobre_class == 1,1,0))%>%
+  dplyr::select(id,pobre_lab)
+
+
+head(predictSample)
+write.csv(predictSample,"predictions/regression_mix_linearreg_xgboost.csv", row.names = FALSE)
+
+
+
+
+## 4.6 Elasticnet ------------------------------------------------------------------
 #############################################
 
 set.seed(21032024)

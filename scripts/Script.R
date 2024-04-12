@@ -37,12 +37,15 @@ p_load(rio, # import/export data
        ranger,
        MLmetrics,
        glmnet,
+<<<<<<< Updated upstream
        gbm,
        xgboost
+=======
+       gtsummary
+>>>>>>> Stashed changes
        )
 
 # 1: Initial Data Manipulation -----------------------------------------------
-
 
 username <- Sys.info()["user"]
 if (username == "Maria.Arias") {
@@ -63,7 +66,7 @@ test_personas <- read.csv("data/test_personas.csv")
 str(train_hogares)
 str(train_personas)
 
-## I choose the individual-level variables that could be helpful
+## We choose the individual-level variables that could be helpful
 
 pre_process_personas<-  function(data, ...) {
   
@@ -248,7 +251,7 @@ impute_Educlevel <- function(data) {
 train_personas <- impute_Educlevel(train_personas)
 test_personas <- impute_Educlevel(test_personas)
 
-## Creation of variables at individual level
+## Creation of variables at individual level transition to home level
 
 train_personas_nivel_hogar<- train_personas %>% 
   group_by(id) %>% 
@@ -364,7 +367,7 @@ test<- test %>%
          Dominio = factor(Dominio)
   )
 
-## Variable creation
+## Variable creation for percentages within the home
 
 train <- train %>%
   mutate(
@@ -389,8 +392,11 @@ test <- test %>%
     perc_renta = (narriendo_o_pension/total_personas)*100,
     perc_oficio_hogar = (noficio_hogar/total_personas)*100
   )
+skim(train)
 
-##------------------------------------------------------------------------------
+skim(test)
+
+## SMOTE-----------------------------------------------------------------------
 ## SMOTE
 
 
@@ -466,7 +472,92 @@ objects_to_remove <- setdiff(objects, c("train", "test", "downSampledTrain", "up
 rm(list = objects_to_remove)
 
 
-#2 Best Subset Selection Pobre ---------------------------------------------
+# 1.1 Descriptive statistics ---------------------------------------------------
+
+names(train)
+
+
+# Define the variables
+des_vars <- c(.)
+
+
+# List of variables
+des_vars <- c("arrienda", "Pobre", "Ingtotug", "Ingtotugarr", "Ingpcug",
+              "propia_pagada", "propia_enpago", "en_usufructo", "sin_titulo",
+              "num_cuartos", "cuartos_usados", "total_personas", "H_Head_mujer",
+              "H_Head_Educ_level", "H_Head_ocupado", "H_Head_afiliadoSalud",
+              "H_Head_edad", "H_Head_incapacitado", "H_Head_arriendo_o_pension",
+              "perc_mujer", "perc_edad_trabajar", "perc_ocupados", "perc_menores",
+              "perc_uso_cuartos", "perc_incapacitados", "perc_renta", "perc_oficio_hogar")
+
+# Descriptive statistics table and output to a LaTeX file
+
+table2 <-
+  tbl_summary(
+    train,
+    include = des_vars,
+    by = Pobre, # split table by group
+    missing = "no" # don't list missing data separately
+  )  %>%
+  add_n() %>% # add column with total number of non-missing observations
+  add_p() %>% # test for a difference between groups
+  modify_header(label = "**Variable**") %>% # update the column header
+  bold_labels() %>%
+  as_gt() %>%
+  gt::as_latex()
+
+
+%>%
+
+
+stargazer::stargazer(as.data.frame(train[, des_vars]), 
+                     type = "latex", 
+                     title = "Descriptivas de las variables explicatorias",
+                     out = "./views/descriptive/descriptivas_numericas.tex",
+                     header = FALSE)  # Suppress variable names in the table
+
+
+## Graph to describe "maxEducLevel", "estrato1"
+bd$maxEducLevel <- factor(bd$maxEducLevel, levels = c(1,2,3,4,5,6,7,9), 
+                          labels = c("Ninguno", "Pre-escolar", "Primaria incompleta", "Primaria completa",
+                                     "Secundaria incompleta", "Secundaria completa","Terciaria","N/A"))
+
+des_2 <- ggplot(bd, aes(x=maxEducLevel)) + 
+  geom_bar(fill="#0099F8") +
+  labs(x="Máximo nivel de educación alcanzado",
+       y= "Cantidad") + 
+  theme_bw() ## Esta distribución parecería atípica, pero como nuestra muestra sólo contiene 
+## personas ocupadas, puede que tenga sentido. Completar con estadísticas laborales en documento.
+ggsave("./views/descriptive/descriptiva_maxEduc.pdf", des_2)
+
+des_3 <- ggplot(bd, aes(x=as.factor(estrato1))) + 
+  geom_bar(fill="#0099F8") +
+  labs(x="Estrato de energía",
+       y= "Cantidad") + 
+  theme_bw()
+ggsave("./views/descriptive/descriptiva_estrato.pdf", des_3)
+
+
+## Graph of why to transform wage to ln(wage)
+
+des_4 <- ggplot(bd, aes(x=ln_wage)) +
+  geom_histogram(fill="#0099F8") +
+  labs(x="ln(salario horario)", y="Frecuencia") +
+  theme_bw()
+ggsave("./views/descriptiva_ln_salario.pdf", des_4)
+
+## Graph of age vs wage
+bd$sex <- factor(bd$sex, levels=c(0,1), labels = c("Mujer", "Hombre"))
+des_5 <- ggplot(bd) + 
+  geom_point(mapping = aes(x=age, y=ln_wage, color=as.factor(sex))) + 
+  geom_smooth(mapping = aes(x=age, y=ln_wage)) +
+  labs(x="Edad", y="ln(salario horario)") + 
+  theme_bw()
+ggsave("./views/descriptive/descriptiva_salario_predictores.pdf", des_5)
+
+
+
+#2 Best Subset Selection Pobre - classification ---------------------------------------------
 
 ### Backward subset selection
 train_pobre_numeric <- dplyr::select(train, -Ingpcug, -Ingtotug, -Ingtotugarr)
@@ -555,7 +646,7 @@ maxF1ModelIndex_for <- which.max(mean.f1Scores_for)
 plot(mean.f1Scores_for, type = "b", main = "Mean F1 Score Forward", xlab = "Number of Variables", ylab = "Mean F1 Score")
 maxF1ModelIndex_for
 
-#3 Best Subset Selection Ingreso -------------------------------------------
+#3 Best Subset Selection Ingreso - regression -------------------------------------------
 
 #Backward
 train_ing <- dplyr::select(train, -Pobre, -Ingtotug, -Ingtotugarr)
@@ -1260,7 +1351,10 @@ mod2 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores +
 mod3 <- Pobre ~ H_Head_mujer*H_Head_ocupado + poly(nocupados, 3, raw= TRUE) + nmujeres  + nmenores
 mod4 <- Pobre ~ .
 
-mod
+mod5 <- Pobre ~ arrienda + propia_pagada + propia_enpago + en_usufructo + sin_titulo*H_Head_mujer +
+  num_cuartos + cuartos_usados + total_personas +  H_Head_ocupado* H_Head_mujer + 
+  H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores* H_Head_mujer + nocupados + noafiliados + edad_trabajar +
+  perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
 
 
 
@@ -1330,6 +1424,25 @@ confusionMatrix(data = lda4$pred$pred,
                 positive="Yes", mode = "prec_recall")
 
 calculate_f1_and_plot(lda4, train) # Best Threshold: 0.28 ; Max F1 Score: 0.5840728 
+
+
+## Model 5 LDA - all variables
+lda5 <- train(mod5, 
+              data = train, 
+              method = "lda",
+              trControl = ctrl)
+
+
+test<- test  %>% mutate(Pobre_hat_lda5=predict(lda5,newdata = test,
+                                               type = "raw"))
+
+test$Pobre_hat_lda5<-factor(test$Pobre_hat_lda5)
+
+confusionMatrix(data = lda5$pred$pred, 
+                reference = lda5$pred$obs, 
+                positive="Yes", mode = "prec_recall")
+
+calculate_f1_and_plot(lda5, train) # Best Threshold: 0.28 ; Max F1 Score: 0.5840728 
 
 
 

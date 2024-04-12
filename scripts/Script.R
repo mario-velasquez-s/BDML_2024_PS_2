@@ -2236,9 +2236,9 @@ elastic_net_f1(train, selected_variables, 500000, 4, 0.5)
 
 ###############################
 
-alpha <- 0.5
-lambda <- 4
-corte <- 500000
+alpha <- 0.8
+lambda <- 1
+corte <- 800000
 
 selected_variables_test <- c("num_cuartos",
                              "cuartos_usados",          
@@ -2292,60 +2292,12 @@ probabilities <- predict(enet_model, newx = x_test, type = "response")
 test$predicted_classes <- ifelse(probabilities < corte, 1, 0)
 
 selected_columns <- test[, c("id", "predicted_classes")]
-write.csv(selected_columns,"./regression_elastic_net_lm_2.csv", row.names = FALSE)
+write.csv(selected_columns,"./regression_elastic_net_lm_3.csv", row.names = FALSE)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-###############################################
-
-alpha <- 0.5
-lambda <- 4
-corte <- 420000
-
-train_index <- sample(1:nrow(train), 0.7 * nrow(train))
-
-# Create the training and test datasets
-train_net <- train[train_index, ]
-test_net <- train[-train_index, ]
-test_net_pobre <- train[-train_index, ]
-
-train_net <- train_net[, selected_variables, drop = FALSE]
-test_net <- test_net[, selected_variables, drop = FALSE]
-
-for (variable in names(train_net)) {
-  if (is.factor(test_net[[variable]])) {
-    test_net[[variable]] <- as.integer(test_net[[variable]])
-    train_net[[variable]] <- as.integer(train_net[[variable]])
-  }
-}
-
-# Fiting the Elastic Net model
-x_train <- as.matrix(train_net[, -which(names(train_net) == 'Ingpcug')])
-y_train <- as.numeric(train_net$Ingpcug)
-
-enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda)
-
-# Predict on the testing dataset
-inc_col_index <- which(names(test_net) == "Ingpcug")
-x_test <- as.matrix(test_net[, -inc_col_index])
-probabilities <- predict(enet_model, newx = x_test, type = "response")
-
-# Assuming a threshold of 0.9 for classification
+probabilities <- predict(enet_model, newx = x_train, type = "response")
 predicted_classes <- ifelse(probabilities < corte, 1, 0)
 
-# Confusion matrix
-actual_classes <- as.numeric(test_net_pobre$Pobre)
+actual_classes <- as.numeric(train$Pobre)
 
 TP <- sum(actual_classes == 1 & predicted_classes == 1)
 FP <- sum(actual_classes == 0 & predicted_classes == 1)
@@ -2362,3 +2314,5 @@ if (!is.na(precision) && !is.na(recall) && precision != 0 && recall != 0) {
 }
 
 print(paste("F1 Score:", F1_score))
+
+

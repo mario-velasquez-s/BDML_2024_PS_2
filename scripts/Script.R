@@ -2119,7 +2119,6 @@ library(glmnet)
 
 elastic_net_f1 <- function(train, selected_variables, corte, lambda, alpha) {
   
-  # Sample rows for the training set
   train_index <- sample(1:nrow(train), 0.7 * nrow(train))
   
   # Create the training and test datasets
@@ -2138,7 +2137,7 @@ elastic_net_f1 <- function(train, selected_variables, corte, lambda, alpha) {
   }
   
   # Fiting the Elastic Net model
-  x_train <- as.matrix(train_net[, -ncol(train_net)])  
+  x_train <- as.matrix(train_net[, -which(names(train_net) == 'Ingpcug')])
   y_train <- as.numeric(train_net$Ingpcug)
   
   enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda)
@@ -2154,8 +2153,12 @@ elastic_net_f1 <- function(train, selected_variables, corte, lambda, alpha) {
   # Confusion matrix
   actual_classes <- as.numeric(test_net_pobre$Pobre)
   
-  precision <- sum(predicted_classes == 1 & actual_classes == 1) / sum(predicted_classes == 1)
-  recall <- sum(predicted_classes == 1 & actual_classes == 1) / sum(actual_classes == 1)
+  TP <- sum(actual_classes == 1 & predicted_classes == 1)
+  FP <- sum(actual_classes == 0 & predicted_classes == 1)
+  FN <- sum(actual_classes == 1 & predicted_classes == 0)
+  
+  precision <- TP / (TP + FP)
+  recall <- TP / (TP + FN)
   
   
   if (!is.na(precision) && !is.na(recall) && precision != 0 && recall != 0) {
@@ -2228,14 +2231,14 @@ selected_variables <- c("Ingpcug",
 
 
 # Probamos la función
-elastic_net_f1(train, selected_variables, 100000, 4, 0.5)
+elastic_net_f1(train, selected_variables, 500000, 4, 0.5)
 
 
 ###############################
 
 alpha <- 0.5
 lambda <- 4
-corte <-100000
+corte <- 500000
 
 selected_variables_test <- c("num_cuartos",
                              "cuartos_usados",          
@@ -2275,7 +2278,7 @@ for (variable in names(train_net)) {
 }
 
 # Fiting the Elastic Net model
-x_train <- as.matrix(train_net[, -ncol(train_net)])  
+x_train <- as.matrix(train_net[, -which(names(train_net) == 'Ingpcug')]) 
 y_train <- as.numeric(train_net$Ingpcug)
 
 enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda)
@@ -2289,7 +2292,7 @@ probabilities <- predict(enet_model, newx = x_test, type = "response")
 test$predicted_classes <- ifelse(probabilities < corte, 1, 0)
 
 selected_columns <- test[, c("id", "predicted_classes")]
-write.csv(selected_columns,"./regression_elastic_net_lm.csv", row.names = FALSE)
+write.csv(selected_columns,"./regression_elastic_net_lm_2.csv", row.names = FALSE)
 
 
 
@@ -2308,7 +2311,7 @@ write.csv(selected_columns,"./regression_elastic_net_lm.csv", row.names = FALSE)
 
 alpha <- 0.5
 lambda <- 4
-corte <-100000
+corte <- 420000
 
 train_index <- sample(1:nrow(train), 0.7 * nrow(train))
 
@@ -2328,7 +2331,7 @@ for (variable in names(train_net)) {
 }
 
 # Fiting the Elastic Net model
-x_train <- as.matrix(train_net[, -ncol(train_net)])  
+x_train <- as.matrix(train_net[, -which(names(train_net) == 'Ingpcug')])
 y_train <- as.numeric(train_net$Ingpcug)
 
 enet_model <- glmnet(x_train, y_train, alpha = alpha, lambda = lambda)
@@ -2344,8 +2347,12 @@ predicted_classes <- ifelse(probabilities < corte, 1, 0)
 # Confusion matrix
 actual_classes <- as.numeric(test_net_pobre$Pobre)
 
-precision <- sum(predicted_classes == 1 & actual_classes == 1) / sum(predicted_classes == 1)
-recall <- sum(predicted_classes == 1 & actual_classes == 1) / sum(actual_classes == 1)
+TP <- sum(actual_classes == 1 & predicted_classes == 1)
+FP <- sum(actual_classes == 0 & predicted_classes == 1)
+FN <- sum(actual_classes == 1 & predicted_classes == 0)
+
+precision <- TP / (TP + FP)
+recall <- TP / (TP + FN)
 
 
 if (!is.na(precision) && !is.na(recall) && precision != 0 && recall != 0) {

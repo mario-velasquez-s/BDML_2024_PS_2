@@ -337,7 +337,7 @@ test<- test_hogares %>%
 
 train<- train %>% 
   mutate(Dominio=factor(Dominio),
-         Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
+         #Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
          arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
          propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
@@ -738,6 +738,7 @@ plot (mean.cv.Scores_for_ing , type = "b")
 #4: CLASSIFICATION APPROACH ----------------------------------------------------
 
 ## 4.1: Linear Regression----------
+#Do until 391 and then...
 set.seed(685397)
 
 colnames(train)
@@ -779,6 +780,11 @@ smote_data_train <-smote_data_train  %>% mutate(fold=c(rep(1,36539),
       
     mod5 <- Pobre ~ arrienda + propia_pagada + propia_enpago + en_usufructo + sin_titulo*H_Head_mujer +
       num_cuartos + cuartos_usados + total_personas +  H_Head_ocupado* H_Head_mujer + 
+      H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores* H_Head_mujer + nocupados + noafiliados + edad_trabajar +
+      perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
+    
+    mod6 <- Pobre ~ Dominio* H_Head_mujer + arrienda + propia_pagada + propia_enpago + en_usufructo + sin_titulo*H_Head_mujer +
+      num_cuartos + cuartos_usados + total_personas* H_Head_mujer + H_Head_Educ_level* H_Head_mujer + H_Head_ocupado* H_Head_mujer + 
       H_Head_afiliadoSalud + H_Head_edad + nmujeres + nmenores* H_Head_mujer + nocupados + noafiliados + edad_trabajar +
       perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos
 
@@ -1956,7 +1962,7 @@ names(train)
 train <- train %>% dplyr::select(-c(Ingtotug,Ingtotugarr))
 
 ## I set the reference value for the classification in Poor = "No"
-train <- train %>% mutate(Pobre=relevel(Pobre,ref="No"),
+train <- train %>% mutate(#Pobre=relevel(Pobre,ref="No"),
                           ln_ing = log(Ingpcug+100),
                           por_ocu_head_mujer = ifelse(H_Head_mujer == "Yes",perc_ocupados,0),
                           por_menores_head_mujer = ifelse(H_Head_mujer == "Yes",perc_menores,0),
@@ -2227,6 +2233,9 @@ write.csv(predictSample,"predictions/regression_xgboost.csv", row.names = FALSE)
 ##################### END PREDICTION OF BEST CART ##############################
 
 
+################################################################################
+##################### MIXER XGBOOST + ELASNET #################################
+################################################################################
 
 ##Elasticnet
 elasnet <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores + 
@@ -2309,6 +2318,70 @@ predictSample <- predictSample %>% mutate(inc_mix = 1*inc1 + (1-0)*inc2)
 predictSample <- predictSample %>% mutate(pobre_lab = ifelse(inc_mix<=340000,1,0))%>%
   dplyr::select(id,pobre_lab)
 
+
+################################################################################
+##################### MIXER XGBOOST + LINEAR REGRESSION ########################
+################################################################################
+
+mixer <- function(base){
+  
+  inc_xgboost <- exp(predict(Xgboost_tree, newdata = base))
+  inc_elasnet <- exp(predict(elasnet, newdata = base))
+  base$inc1 <- inc_xgboost
+  base$inc2 <- inc_elasnet
+  
+  best_f1 <- 0
+  best_a <- 0
+  a_b <- seq(0,1,length=10)
+  as <- vector("numeric", length = length(a_b))
+  f1_scores <- vector("numeric", length = length(a_b))
+  for(i in 1:length(a_b)){
+    a<-a_b[[i]]
+    b<-1-a
+    base <- base %>% mutate(inc_mix = a*base$inc1 + b*base$inc2)
+    base <- base %>% mutate(pobre_pred = ifelse(inc_mix<=340000,1,0))
+    
+    #We estimate the F1
+    TP <- sum(base$Pobre == "Yes" & base$pobre_pred == 1)
+    TN <- sum(base$Pobre == "No" & base$pobre_pred == 0 )
+    FP <- sum(base$Pobre == "No" & base$pobre_pred == 1 )
+    FN <- sum(base$Pobre == "Yes" & base$pobre_pred == 0 )
+    
+    recall <- TP / (FN + TP)
+    precision <- TP / (TP + FP)
+    
+    f1_i <- 2 * precision * recall / (precision + recall)
+    as[[i]] <- a
+    f1_scores[[i]] <- f1_i
+    if(f1_i>best_f1){
+      best_f1 <- f1_i
+      best_a <- a
+    }
+  }
+  a_data <- data.frame(a_s = as, f1_score = f1_scores)
+  graph_a_f1 <- ggplot(a_data, aes(x = a_s, y = f1_score)) +
+    geom_point() +
+    labs(x = "Peso XGboost", y = "F1 Score", title = "Mixer: F1 Score vs. weight XGBoost")
+  print(paste("Best a: ",best_a))
+  print(paste("Best F1: ",best_f1))
+  graph_a_f1
+}
+
+mixer(testbase) #0.5981276
+
+inc_xgboost <- exp(predict(Xgboost_tree, newdata = test))
+inc_elasnet <- exp(predict(elasnet, newdata = test))
+predictSample <- test %>% mutate(inc1 = inc_xgboost,
+                                 inc2 = inc_elasnet)
+
+
+predictSample <- predictSample %>% mutate(inc_mix = 1*inc1 + (1-0)*inc2)
+predictSample <- predictSample %>% mutate(pobre_lab = ifelse(inc_mix<=340000,1,0))%>%
+  dplyr::select(id,pobre_lab)
+
+################################################################################
+##################### MIXER XGBOOST + LOGIT #################################
+################################################################################
 ## Mix between class_linearreg and xgboost
 ## Precicting and generating prediction file
 predictSample <- test %>%

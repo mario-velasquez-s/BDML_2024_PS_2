@@ -337,7 +337,7 @@ test<- test_hogares %>%
 
 train<- train %>% 
   mutate(Dominio=factor(Dominio),
-         #Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
+         Pobre = factor(Pobre, levels = c(0, 1),labels=c("No","Yes")),
          arrienda=factor(arrienda,levels=c(0,1),labels=c("No","Yes")),
          propia_pagada = factor(propia_pagada, levels = c(0, 1),labels=c("No","Yes")),
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
@@ -872,7 +872,7 @@ best_thresh_cv<- function(base,nfolds,model,...){
 }
 
 best_thresh_cv(train,k,mod3)
-
+best_lg <- lm(mod3, train)
 
 ## Precicting and generating prediction file
     predictSample <- test %>%
@@ -2322,13 +2322,14 @@ predictSample <- predictSample %>% mutate(pobre_lab = ifelse(inc_mix<=340000,1,0
 ################################################################################
 ##################### MIXER XGBOOST + LINEAR REGRESSION ########################
 ################################################################################
+pob_hat2 <- ifelse(predict(best_lg, newdata=testbase) >= 0.33, 1, 0)
 
 mixer <- function(base){
   
-  inc_xgboost <- exp(predict(Xgboost_tree, newdata = base))
-  inc_elasnet <- exp(predict(elasnet, newdata = base))
-  base$inc1 <- inc_xgboost
-  base$inc2 <- inc_elasnet
+  pob_hat1 <- ifelse(exp(predict(Xgboost_tree, newdata = base))<=340000,1,0)
+  pob_hat2 <- ifelse(predict(best_lg, newdata=base) >= 0.33, 1, 0)
+  base$pobre_pred1 <- pob_hat1
+  base$pobre_pred2 <- pob_hat2
   
   best_f1 <- 0
   best_a <- 0
@@ -2338,8 +2339,7 @@ mixer <- function(base){
   for(i in 1:length(a_b)){
     a<-a_b[[i]]
     b<-1-a
-    base <- base %>% mutate(inc_mix = a*base$inc1 + b*base$inc2)
-    base <- base %>% mutate(pobre_pred = ifelse(inc_mix<=340000,1,0))
+    base <- base %>% mutate(pobre_pred = ifelse((a*base$pobre_pred1 + b*base$pobre_pred1) >= 0.5,1,0))
     
     #We estimate the F1
     TP <- sum(base$Pobre == "Yes" & base$pobre_pred == 1)

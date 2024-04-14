@@ -2011,6 +2011,19 @@ inTrain <- createDataPartition(y = train$ln_ing,
 trainbase <- train[inTrain,]
 testbase <- train[-inTrain,]
 
+
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- MLmetrics::F1_Score(y_pred = data$pred,
+                                y_true = data$obs,
+                                positive = lev[1])
+  c(F1 = f1_val)
+}
+fitControlclass <- trainControl(method = "cv", 
+                           number = 5,
+                           classProbs = TRUE, 
+                           summaryFunction = f1, #Aca se llama la summary function 
+                           verboseIter = FALSE)
+
 fitControl<-trainControl(method ="cv",
                          number=5)
 
@@ -2082,8 +2095,8 @@ grid_xbgoost <- expand.grid(nrounds = c(850),
                             max_depth = c(6), 
                             eta = c(0.05), 
                             gamma = c(0), 
-                            min_child_weight = c(10),
-                            colsample_bytree = c(0.66),
+                            min_child_weight = c(40),
+                            colsample_bytree = c(0.33),
                             subsample = c(0.4))
 
 grid_xbgoost
@@ -2092,7 +2105,7 @@ Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                         num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
                         propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
                         total_personas + H_Head_mujer + H_Head_afiliadoSalud + 
-                        nmujeres + nocupados + edad_trabajar + perc_mujer + 
+                        nmujeres +  nocupados + edad_trabajar + perc_mujer + 
                         perc_edad_trabajar + perc_menores + perc_uso_cuartos + 
                         Head_mujer_universitaria + Head_hombre_universitaria +
                         Head_mujer_ninguno + Head_hombre_ninguno +
@@ -2107,16 +2120,38 @@ Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
 )
 Xgboost_tree
 
+Xgboost_tree_class <- train(Pobre ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                        num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                        propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                        total_personas + H_Head_mujer + H_Head_afiliadoSalud + 
+                        nmujeres +  nocupados + edad_trabajar + perc_mujer + 
+                        perc_edad_trabajar + perc_menores + perc_uso_cuartos + 
+                        Head_mujer_universitaria + Head_hombre_universitaria +
+                        Head_mujer_ninguno + Head_hombre_ninguno +
+                        Head_mujer_primaria + Head_hombre_primaria +
+                        Head_mujer_secundaria + Head_hombre_secundaria +
+                        + Head_mujer_media + Head_hombre_media + H_Head_edad2 + 
+                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp,
+                      data=trainbase,
+                      method = "xgbTree", 
+                      trControl = fitControlclass,
+                      tuneGrid=grid_xbgoost,
+                      metric = "F1",
+                      maximize = TRUE
+)
+Xgboost_tree_class
+
 ####### IMPROVEMENT THROUGH MODEL SELECTION BY USING BEST SUBSET SELECTION ####
 model_selection <- ln_ing ~ perc_ocupados + H_Head_Educ_level:H_Head_mujer + nmenores:H_Head_mujer + 
   num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
   propia_enpago + en_usufructo + cuartos_usados + 
   total_personas:H_Head_mujer + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
   nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
-  perc_edad_trabajar + perc_menores + perc_uso_cuartos
+  perc_edad_trabajar + perc_menores + perc_uso_cuartos + Dominio
 bestsub <- regsubsets(model_selection,
                       data = trainbase,
-                      nvmax = 35)
+                      nvmax = 60,
+                      really.big=T)
 summary(bestsub)
 names(coef(bestsub,25))
 
@@ -2214,8 +2249,63 @@ pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
 
 #Trained CART models: tree_rpart2 (0.487608), ranger (0.583853), Xgboost_tree (0.596281)
 pov_threshold_estimator(Xgboost_tree,testbase,300000,400000,10000)
-#f1_estimator_cart(Xgboost_tree,testbase,340000) ## XGBoost is my best CART model
-############### END IMPROVEMENT THROUGH INCOME THRESHOLD #############
+
+
+
+############### IMPROVEMENT THROUGH INCOME THRESHOLD FOR CLASS #################
+
+#base_prueba$prueba <- predict(Xgboost_tree_class, newdata = testbase, type="prob")$Yes
+
+
+best_thresh<- function(base,model,...){
+  thresholds <- seq(0.26, 0.4, by = 0.02)
+  f1_scores <- numeric(length(thresholds))
+  max_f1 <- 0
+  best_threshold <- 0
+  for (i in seq_along(thresholds)) {
+    threshold <- thresholds[i]
+    
+    # Store the F1 score for this threshold
+    base$prob_pred<-predict(model, newdata = base, type="prob")$Yes
+    base$pobre_pred <-ifelse(base$prob_pred>=threshold,1,0)
+    #We estimate the F1
+    TP <- sum(base$Pobre == "Yes" & base$pobre_pred == 1)
+    TN <- sum(base$Pobre == "No" & base$pobre_pred == 0 )
+    FP <- sum(base$Pobre == "No" & base$pobre_pred == 1 )
+    FN <- sum(base$Pobre == "Yes" & base$pobre_pred == 0 )
+    
+    recall <- TP / (FN + TP)
+    precision <- TP / (TP + FP)
+    
+    F1 <- 2 * precision * recall / (precision + recall)
+    f1_scores[i] <- F1
+    
+    # Update max_f1 and best_threshold if current F1 score is higher
+    if (f1_scores[i] > max_f1) {
+      max_f1 <- f1_scores[i]
+      best_threshold <- threshold
+    }
+  }
+  
+  # Create a data frame with threshold and F1 score data
+  threshold_f1_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
+  
+  # Plot the relationship between threshold and F1 score
+  graph_thresh_f1 <- ggplot(threshold_f1_data, aes(x = threshold, y = f1_score)) +
+    geom_line() +
+    geom_point() +
+    labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
+  
+  print(paste("Best Threshold:",best_threshold))
+  print(paste("F1:",round(max_f1,3)))
+  graph_thresh_f1
+}
+##################### END FUNCTION TO OPTIMIZE F1 FOR CART's CLASS #############
+
+#Trained CART class models: Xgboost_tree_class (0.602)
+best_thresh(testbase,Xgboost_tree_class)
+
+
 
 
 ##################### PREDICTION OF BEST CART #################################

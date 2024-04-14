@@ -1912,7 +1912,7 @@ for(i in 1:10){
 
 
 ## 4.5 CART's ------------------------------------------------------------------
-#Do until line 391, then...
+#Do until line 400, then...
 names(train)
 train <- train %>% dplyr::select(-c(Ingtotug,Ingtotugarr))
 
@@ -2067,7 +2067,8 @@ Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                         Head_mujer_primaria + Head_hombre_primaria +
                         Head_mujer_secundaria + Head_hombre_secundaria +
                         + Head_mujer_media + Head_hombre_media + H_Head_edad2 + 
-                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp,
+                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp+
+                        Dominio,
                       data=trainbase,
                       method = "xgbTree", 
                       trControl = fitControl,
@@ -2086,7 +2087,8 @@ Xgboost_tree_class <- train(Pobre ~ perc_ocupados + H_Head_Educ_level + nmenores
                         Head_mujer_primaria + Head_hombre_primaria +
                         Head_mujer_secundaria + Head_hombre_secundaria +
                         + Head_mujer_media + Head_hombre_media + H_Head_edad2 + 
-                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp,
+                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp +
+                          Dominio,
                       data=trainbase,
                       method = "xgbTree", 
                       trControl = fitControlclass,
@@ -2202,7 +2204,7 @@ pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
   graph_thresh_f1
 }
 
-#Trained CART models: tree_rpart2 (0.487608), ranger (0.583853), Xgboost_tree (0.596281)
+#Trained CART models: tree_rpart2 (0.487608), ranger (0.583853), Xgboost_tree (0.606)
 pov_threshold_estimator(Xgboost_tree,testbase,300000,400000,10000)
 
 

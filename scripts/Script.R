@@ -7,9 +7,8 @@
 # Initial Setup -----------------------------------------------------------
 
 rm(list = ls())
+
 if(!require(pacman)) install.packages("pacman") ; require(pacman)
-
-
 p_load(rio, # import/export data
        tidyverse, # tidy-data
        skimr, # summary data
@@ -40,7 +39,11 @@ p_load(rio, # import/export data
        gbm,
        xgboost,
        gtsummary,
-       Hmisc)
+       Hmisc,
+      labelled)
+
+library("labelled")
+
 
 # 1: Initial Data Manipulation -----------------------------------------------
 
@@ -493,38 +496,39 @@ des_vars <- c("arrienda", "Ingtotug", "Ingtotugarr", "Ingpcug",
 
 
 # Assigning labels to variables in the train dataset
-label(train$arrienda) <- "Arriendo"
-label(train$Ingtotug) <- "Ingreso total del hogar"
-label(train$Ingtotugarr) <- "Ingreso total del hogar por arriendo"
-label(train$Ingpcug) <- "Ingreso per cápita"
-label(train$propia_pagada) <- "Propiedad propia pagada"
-label(train$propia_enpago) <- "Propiedad propia en pago"
-label(train$en_usufructo) <- "En usufructo"
-label(train$sin_titulo) <- "Sin título"
-label(train$num_cuartos) <- "Número de cuartos"
-label(train$cuartos_usados) <- "Cuartos usados"
-label(train$total_personas) <- "Total de personas"
-label(train$H_Head_mujer) <- "Jefa de hogar es mujer"
-label(train$H_Head_Educ_level) <- "Nivel educativo de la jefa de hogar"
-label(train$H_Head_ocupado) <- "Jefa de hogar está ocupada"
-label(train$H_Head_afiliadoSalud) <- "Jefa de hogar afiliada a salud"
-label(train$H_Head_edad) <- "Edad de la jefa de hogar"
-label(train$H_Head_incapacitado) <- "Jefa de hogar está incapacitada"
-label(train$H_Head_arriendo_o_pension) <- "Jefa de hogar paga arriendo o pensión"
-label(train$perc_mujer) <- "Porcentaje de mujeres"
-label(train$perc_edad_trabajar) <- "Porcentaje de población en edad de trabajar"
-label(train$perc_ocupados) <- "Porcentaje de personas ocupadas"
-label(train$perc_menores) <- "Porcentaje de menores de edad"
-label(train$perc_uso_cuartos) <- "Porcentaje de cuartos en uso"
-label(train$perc_incapacitados) <- "Porcentaje de incapacitados"
-label(train$perc_renta) <- "Porcentaje de hogares que pagan renta"
-label(train$perc_oficio_hogar) <- "Porcentaje de jefas de hogar dedicadas a labores domésticas"
-
+  var_label(train) <- list(
+    arrienda = "Arriendo",
+    Ingtotug = "Ingreso total",
+    Ingpcug = "Ingreso per cápita",
+    Ingtotugarr = "Ingreso total por arriendo",
+    propia_pagada = "Propiedad propia pagada",
+    propia_enpago = "Propiedad propia en pago",
+    en_usufructo = "En usufructo",
+    sin_titulo = "Sin título",
+    num_cuartos = "Número de cuartos",
+    cuartos_usados = "Cuartos usados",
+    total_personas = "Total de personas hogar",
+    H_Head_mujer = "Jefa de hogar es mujer",
+    H_Head_Educ_level = "Nivel educativo dejefe ",
+    H_Head_ocupado = "Jefa de hogar ocupado",
+    H_Head_afiliadoSalud = "Jefe afiliado a salud",
+    H_Head_edad = "Edad jefe",
+    H_Head_incapacitado = "Jefe de hogar está incapacitada",
+    H_Head_arriendo_o_pension = "Jefe recibe ingresos por arriendo/pensión",
+    perc_mujer = "% de mujeres hogar",
+    perc_edad_trabajar = "% población en edad de trabajar hogar",
+    perc_ocupados = "% de personas ocupadas hogar",
+    perc_menores = "% de menores de edad hogar",
+    perc_uso_cuartos = "% de cuartos en uso hogar",
+    perc_incapacitados = "% de incapacitados hogar",
+    perc_renta = "% que recibe ingresos por renta hogar",
+    perc_oficio_hogar = "% de jefes dedicados a labores domésticas"
+  )
 
 
 # Descriptive statistics table and output to a LaTeX file
 
-table2 <-
+table_ttest <-
   tbl_summary(
     train,
     include = des_vars,
@@ -537,53 +541,22 @@ table2 <-
   as_gt() %>%
   gt::as_latex()
 
+H_Head_mujer=mujer,
+H_Head_Educ_level=EducLevel,
+H_Head_ocupado=ocupado,
+H_Head_afiliadoSalud = afiliadoSalud,
+H_Head_edad = edad,
+H_Head_incapacitado = incapacitado,
+H_Head_arriendo_o_pension = arriendo_o_pension
 
+train$ln_Ingtotug <- log(train$Ingtotug)
 
-stargazer::stargazer(as.data.frame(train[, des_vars]), 
-                     type = "latex", 
-                     title = "Descriptivas de las variables explicatorias",
-                     out = "./views/descriptive/descriptivas_numericas.tex",
-                     header = FALSE)  # Suppress variable names in the table
+ggplot(data = train , 
+       mapping = aes(x =  H_Head_edad, y = ln_Ingtotug , group=as.factor(H_Head_mujer) , color=as.factor(H_Head_mujer))) +
+  geom_point()
 
-
-## Graph to describe "maxEducLevel", "estrato1"
-bd$maxEducLevel <- factor(bd$maxEducLevel, levels = c(1,2,3,4,5,6,7,9), 
-                          labels = c("Ninguno", "Pre-escolar", "Primaria incompleta", "Primaria completa",
-                                     "Secundaria incompleta", "Secundaria completa","Terciaria","N/A"))
-
-des_2 <- ggplot(bd, aes(x=maxEducLevel)) + 
-  geom_bar(fill="#0099F8") +
-  labs(x="Máximo nivel de educación alcanzado",
-       y= "Cantidad") + 
-  theme_bw() ## Esta distribución parecería atípica, pero como nuestra muestra sólo contiene 
-## personas ocupadas, puede que tenga sentido. Completar con estadísticas laborales en documento.
-ggsave("./views/descriptive/descriptiva_maxEduc.pdf", des_2)
-
-des_3 <- ggplot(bd, aes(x=as.factor(estrato1))) + 
-  geom_bar(fill="#0099F8") +
-  labs(x="Estrato de energía",
-       y= "Cantidad") + 
-  theme_bw()
-ggsave("./views/descriptive/descriptiva_estrato.pdf", des_3)
-
-
-## Graph of why to transform wage to ln(wage)
-
-des_4 <- ggplot(bd, aes(x=ln_wage)) +
-  geom_histogram(fill="#0099F8") +
-  labs(x="ln(salario horario)", y="Frecuencia") +
-  theme_bw()
-ggsave("./views/descriptiva_ln_salario.pdf", des_4)
-
-## Graph of age vs wage
-bd$sex <- factor(bd$sex, levels=c(0,1), labels = c("Mujer", "Hombre"))
-des_5 <- ggplot(bd) + 
-  geom_point(mapping = aes(x=age, y=ln_wage, color=as.factor(sex))) + 
-  geom_smooth(mapping = aes(x=age, y=ln_wage)) +
-  labs(x="Edad", y="ln(salario horario)") + 
-  theme_bw()
-ggsave("./views/descriptive/descriptiva_salario_predictores.pdf", des_5)
-
+ggplot(data=train) + 
+  geom_histogram(mapping = aes(x=ln_Ingtotug , group=as.factor(H_Head_mujer) , fill=as.factor(H_Head_mujer)))
 
 
 #2 Best Subset Selection Pobre - classification ---------------------------------------------
@@ -597,6 +570,14 @@ train_pobre_numeric <- train_pobre_numeric %>%
 model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2 + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + 
                                                                                                                                                                                                                                     H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + 
                                                                                                                                                                                                                                 perc_ocupados + perc_menores + perc_uso_cuartos)^3
+<<<<<<< Updated upstream
+=======
+
+
+
+
+lm(model_form, data = train)
+>>>>>>> Stashed changes
 
 backward_model <- regsubsets(model_form, ## formula
                              data = train_pobre_numeric, ## data frame Note we are using the training sample
@@ -1403,9 +1384,8 @@ write.csv(predictSample_glm_4, "classification_logit.csv", row.names = FALSE)
 
 
 
-## 4.4: CART - LDA and QDA----
-
-max_nvars= fordward_model[["np"]]-1  ## minus one because it counts the intercept.
+### esto donde va?--------
+max_nvars= forward_model[["np"]]-1  ## minus one because it counts the intercept.
 max_nvars
 
 predict.regsubsets<- function (object , newdata , id, ...) {
@@ -1440,11 +1420,9 @@ mean.cv.errors
 which.min (mean.cv.errors)
 plot (mean.cv.errors , type = "b")
 
-## 2.4: CART - LDA and QDA ---------------------------------------------------
 
-
-
-mod0 <- Pobre ~ nmenores + arrienda
+## 4.4: CART - LDA and QDA----
+mod0 <-model_form
 
 mod1 <- Pobre ~ H_Head_mujer*H_Head_ocupado + nocupados + nmujeres  + nmenores*H_Head_mujer +
   H_Head_afiliadoSalud + H_Head_Educ_level*H_Head_mujer + arrienda + Dominio*H_Head_mujer + noafiliados
@@ -1476,21 +1454,23 @@ ctrl <- trainControl(method = "cv",
 
 # Perform LDA classification
 lda0 <- train(mod0, 
-             data = train, 
+             data = train_pobre_numeric, 
              method = "lda",
              trControl = ctrl)
 
 
-test<- test  %>% mutate(Pobre_hat_lda=predict(lda,newdata = test,
+test<- test  %>% mutate(Pobre_hat_lda0=predict(lda0,newdata = test,
                                                       type = "raw"))
 
-test$Pobre_hat_lda<-factor(test$Pobre_hat_lda)
+test$Pobre_hat_lda0<-factor(test$Pobre_hat_lda0)
 
-confusionMatrix(data = lda$pred$pred, 
-                reference = lda$pred$obs, 
+confusionMatrix(data = lda0$pred$pred, 
+                reference = lda0$pred$obs, 
                 positive="Yes", mode = "prec_recall")
 
-calculate_f1_and_plot(lda0, train) # Best Threshold: 0.12 ; Max F1 Score: 0.4284724 
+calculate_f1_and_plot(lda0, train) # Best Threshold: 0.23 Max F1 Score: 0.6243676 
+write.csv(predictSample,"classification_lda.csv", row.names = FALSE)
+
 
 lda1 <- train(mod1, 
               data = train, 
@@ -1549,24 +1529,44 @@ calculate_f1_and_plot(lda5, train) # Best Threshold: 0.28 ; Max F1 Score: 0.5840
 
 
 
-
-
 # Perform QDA classification
-qda1 <- train(mod1, 
+
+# QDA - Best subset selection model
+qda0 <- train(mod0, 
              data = train, 
              method = "qda",
              trControl = ctrl)
 
 
-test<- test  %>% mutate(Pobre_hat_qda1=predict(qda1,newdata = test,
+test<- test  %>% mutate(Pobre_hat_qda0=predict(qda0,newdata = test,
                                               type = "raw"))
 
-test$Pobre_hat_qda1<-factor(test$Pobre_hat_qda1)
+test$Pobre_hat_qda0<-factor(test$Pobre_hat_qda0)
 
-confusionMatrix(data = qda1$pred$pred, 
-                reference = qda1$pred$obs, 
+confusionMatrix(data = qda0$pred$pred, 
+                reference = qda0$pred$obs, 
                 positive="Yes", mode = "prec_recall")
 
+calculate_f1_and_plot(qda0, train) # Best Threshold: 0.01 Max F1 Score: 0.4590532
+
+# QDA - All variables model
+
+qda4 <- train(mod4, 
+              data = train, 
+              method = "qda",
+              trControl = ctrl)
+
+
+test<- test  %>% mutate(Pobre_hat_qda4=predict(qda4,newdata = test,
+                                               type = "raw"))
+
+test$Pobre_hat_qda4<-factor(test$Pobre_hat_qda4)
+
+confusionMatrix(data = qda4$pred$pred, 
+                reference = qda4$pred$obs, 
+                positive="Yes", mode = "prec_recall")
+
+calculate_f1_and_plot(qda4, train) # Best Threshold: 0.61 Max F1 Score: 0.5373676
 
 ## 4.5 Tree ------------------------------------------------------------------
 #Do until line 273, then...
@@ -1773,9 +1773,46 @@ aucval_rf
 
 #3: INCOME REGRESSION APPROACH -------------------------------------------------
 
+<<<<<<< Updated upstream
   train_pobre_numeric <- dplyr::select(train, -Ingtotug, -Ingtotugarr, -Lp)
   train_pobre_numeric <- train_pobre_numeric %>%
     mutate(Pobre = as.integer(train$Pobre == "Yes"))
+=======
+#Linear regression ------
+set.seed(123)
+all_vars <- names(train)
+exclude_vars <- c("Ingtotug", "Ingtotugarr", "Pobre")
+right_hand_vars_exclude <- c("Ingtotug", "Ingtotugarr", "Pobre","Ingpcug")
+include_vars <- setdiff(all_vars, right_hand_vars_exclude)
+target_var <- "Ingpcug"
+formula_str <- Ingpcug ~ noficio_hogar + nmenores + H_Head_Educ_level + narriendo_o_pension + nestudiantes + nocupados + H_Head_Educ_level:edad_trabajar + num_cuartos + num_cuartos:Dominio + num_cuartos:Dominio:propia_pagada
+inc_mod1 <- as.formula(formula_str)
+inc_mod1
+train_inc <- train 
+K <- 10
+nrow(train_inc)/K
+
+train_inc<-train_inc  %>% mutate(fold=c(rep(1,16496),
+                              rep(2,16496),
+                              rep(3,16496),
+                              rep(4,16496),
+                              rep(5,16496),
+                              rep(6,16496),
+                              rep(7,16496),
+                              rep(8,16496),
+                              rep(9,16496),
+                              rep(10,16496)))
+
+fit1<- lm(inc_mod1, data= train_inc  %>% filter(fold!=1))
+yhat1<- predict(fit1,newdata=train_inc  %>% filter(fold==1) )
+
+db_train<-list()
+db_test<-list()
+
+for(i in 1:10){
+  db_train[[i]] <- train_inc %>% filter(fold != i) # Trains
+  db_test[[i]] <- train_inc %>% filter(fold == i) # Tests
+>>>>>>> Stashed changes
   
   # Define all variables from the train dataset
   all_vars <- names(train)

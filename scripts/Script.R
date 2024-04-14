@@ -352,7 +352,7 @@ train<- train %>%
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
          en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
          sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
-         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
+         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("Hombre", "Mujer")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
@@ -366,7 +366,7 @@ test<- test %>%
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
          en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
          sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
-         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
+         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("Hombre", "Mujer")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
@@ -508,7 +508,7 @@ des_vars <- c("arrienda", "Ingtotug", "Ingtotugarr", "Ingpcug",
     num_cuartos = "Número de cuartos",
     cuartos_usados = "Cuartos usados",
     total_personas = "Total de personas hogar",
-    H_Head_mujer = "Jefa de hogar es mujer",
+    H_Head_mujer = "Sexo del jefe del hogar",
     H_Head_Educ_level = "Nivel educativo dejefe ",
     H_Head_ocupado = "Jefa de hogar ocupado",
     H_Head_afiliadoSalud = "Jefe afiliado a salud",
@@ -541,13 +541,6 @@ table_ttest <-
   as_gt() %>%
   gt::as_latex()
 
-H_Head_mujer=mujer,
-H_Head_Educ_level=EducLevel,
-H_Head_ocupado=ocupado,
-H_Head_afiliadoSalud = afiliadoSalud,
-H_Head_edad = edad,
-H_Head_incapacitado = incapacitado,
-H_Head_arriendo_o_pension = arriendo_o_pension
 
 train$ln_Ingtotug <- log(train$Ingtotug)
 
@@ -557,6 +550,24 @@ ggplot(data = train ,
 
 ggplot(data=train) + 
   geom_histogram(mapping = aes(x=ln_Ingtotug , group=as.factor(H_Head_mujer) , fill=as.factor(H_Head_mujer)))
+
+mu <- ddply(train, "H_Head_mujer", summarise, promedio=log(mean(Ingtotug)))
+
+ggplot(train, aes(x=ln_Ingtotug, color=H_Head_mujer)) +
+  geom_density()
+
+
+
+p<-ggplot(train, aes(x=ln_Ingtotug, color=H_Head_mujer)) +
+  geom_density()+
+  geom_vline(data=mu, aes(xintercept=promedio, color=H_Head_mujer),
+             linetype="dashed") +
+  scale_fill_discrete(name = "Sexo jefe del hogar", labels = c("Hombre", "Mujer"))+
+  labs(x = "Log. Ingresos totales", y = "Densidad")
+
+
+p + scale_color_grey() + theme_classic()
+
 
 
 #2 Best Subset Selection Pobre - classification ---------------------------------------------

@@ -352,7 +352,7 @@ train<- train %>%
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
          en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
          sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
-         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
+         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("Hombre", "Mujer")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
@@ -366,7 +366,7 @@ test<- test %>%
          propia_enpago = factor(propia_enpago, levels = c(0, 1),labels=c("No","Yes")),
          en_usufructo = factor(en_usufructo, levels = c(0, 1),labels=c("No","Yes")),
          sin_titulo = factor(sin_titulo, levels = c(0, 1),labels=c("No","Yes")),
-         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("No", "Yes")),
+         H_Head_mujer = factor(H_Head_mujer, levels= c(0,1), labels=c("Hombre", "Mujer")),
          H_Head_Educ_level=factor(H_Head_Educ_level,levels=c(0:6), labels=c("Ns",'Ninguno', 'Preescolar','Primaria', 'Secundaria','Media', 'Universitaria')),
          H_Head_ocupado = factor(H_Head_ocupado, levels= c(0,1), labels= c("No", "Yes")),
          H_Head_afiliadoSalud = factor(H_Head_afiliadoSalud, levels = c(0,1), labels=c("No", "Yes")),
@@ -508,7 +508,7 @@ des_vars <- c("arrienda", "Ingtotug", "Ingtotugarr", "Ingpcug",
     num_cuartos = "Número de cuartos",
     cuartos_usados = "Cuartos usados",
     total_personas = "Total de personas hogar",
-    H_Head_mujer = "Jefa de hogar es mujer",
+    H_Head_mujer = "Sexo del jefe del hogar",
     H_Head_Educ_level = "Nivel educativo dejefe ",
     H_Head_ocupado = "Jefa de hogar ocupado",
     H_Head_afiliadoSalud = "Jefe afiliado a salud",
@@ -541,13 +541,6 @@ table_ttest <-
   as_gt() %>%
   gt::as_latex()
 
-H_Head_mujer=mujer,
-H_Head_Educ_level=EducLevel,
-H_Head_ocupado=ocupado,
-H_Head_afiliadoSalud = afiliadoSalud,
-H_Head_edad = edad,
-H_Head_incapacitado = incapacitado,
-H_Head_arriendo_o_pension = arriendo_o_pension
 
 train$ln_Ingtotug <- log(train$Ingtotug)
 
@@ -557,6 +550,24 @@ ggplot(data = train ,
 
 ggplot(data=train) + 
   geom_histogram(mapping = aes(x=ln_Ingtotug , group=as.factor(H_Head_mujer) , fill=as.factor(H_Head_mujer)))
+
+mu <- ddply(train, "H_Head_mujer", summarise, promedio=log(mean(Ingtotug)))
+
+ggplot(train, aes(x=ln_Ingtotug, color=H_Head_mujer)) +
+  geom_density()
+
+
+
+p<-ggplot(train, aes(x=ln_Ingtotug, color=H_Head_mujer)) +
+  geom_density()+
+  geom_vline(data=mu, aes(xintercept=promedio, color=H_Head_mujer),
+             linetype="dashed") +
+  scale_fill_discrete(name = "Sexo jefe del hogar", labels = c("Hombre", "Mujer"))+
+  labs(x = "Log. Ingresos totales", y = "Densidad")
+
+
+p + scale_color_grey() + theme_classic()
+
 
 
 #2 Best Subset Selection Pobre - classification ---------------------------------------------
@@ -570,14 +581,6 @@ train_pobre_numeric <- train_pobre_numeric %>%
 model_form <- Pobre ~ . + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + perc_ocupados + perc_menores + perc_uso_cuartos)^2 + (cuartos_usados + H_Head_mujer + H_Head_ocupado + H_Head_afiliadoSalud + 
                                                                                                                                                                                                                                     H_Head_edad + nmujeres + noafiliados + perc_mujer + perc_edad_trabajar + 
                                                                                                                                                                                                                                 perc_ocupados + perc_menores + perc_uso_cuartos)^3
-<<<<<<< Updated upstream
-=======
-
-
-
-
-lm(model_form, data = train)
->>>>>>> Stashed changes
 
 backward_model <- regsubsets(model_form, ## formula
                              data = train_pobre_numeric, ## data frame Note we are using the training sample
@@ -681,7 +684,7 @@ max_nvars_ing
 
 k_ing <- 10
 n_ing <- nrow (train_ing)
-folds <- sample (rep (1:k, length = n_ing))
+folds <- sample (rep (1:k_ing, length = n_ing))
 
 cv.Scores_back_ing <- matrix(NA, k_ing, max_nvars_ing, dimnames = list(NULL, paste(1:max_nvars_ing)))
 
@@ -696,7 +699,7 @@ predict.regsubsets<- function (object , newdata , id, ...) {
 
 cv.Scores_for_ing <- matrix(NA, k_ing, max_nvars_ing, dimnames = list(NULL, paste(1:max_nvars_ing)))
 
-for (j in 1:k) {
+for (j in 1:k_ing) {
   best_fit <- regsubsets(model_form_ing,
                          data = train_ing[folds != j, ],
                          nvmax = max_nvars_ing, 
@@ -711,7 +714,7 @@ for (j in 1:k) {
 mean.cv.Scores_for_ing <- apply (cv.Scores_for_ing , 2, mean)
 mean.cv.Scores_for_ing
 which.min (mean.cv.Scores_for_ing)
-plot (mean.cv.Scores_for_ing , type = "b")
+plot (mean.cv.Scores_for_ing , type = "b", ylab = "MSE", xlab="Número de variables")
 
 #Forward best subset selection with F1
 
@@ -1326,9 +1329,18 @@ train_control <- trainControl(
 # ------------
 
 glm_1 <- train(formula(mod1), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
-glm_2 <- train(formula(mod2), data = train, method = "glm", family = "binomial", trControl = train_control)
-glm_3 <- train(formula(mod3), data = train, method = "glm", family = "binomial", trControl = train_control)
-glm_4 <- train(formula(mod4), data = train, method = "glm", family = "binomial", trControl = train_control)
+glm_2 <- train(formula(mod2), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
+glm_3 <- train(formula(mod3), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
+glm_4 <- train(formula(mod4), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control) # Best model
+
+#Extracting coefficients of the best model
+summary(glm_4)
+model_coefficients <- coef(glm_4$finalModel)
+# Convert to data frame
+coefficients_df <- as.data.frame(model_coefficients, row.names = NULL)
+# Naming the columns appropriately
+names(coefficients_df) <- c("Coefficient")
+
 
 # Function to Calculate F1 Score and Plot
 # ---------------------------------------
@@ -1771,48 +1783,11 @@ aucval_rf
 
 
 
-#3: INCOME REGRESSION APPROACH -------------------------------------------------
+#5.1: Income Linear Regression -------------------------------------------------
 
-<<<<<<< Updated upstream
   train_pobre_numeric <- dplyr::select(train, -Ingtotug, -Ingtotugarr, -Lp)
   train_pobre_numeric <- train_pobre_numeric %>%
     mutate(Pobre = as.integer(train$Pobre == "Yes"))
-=======
-#Linear regression ------
-set.seed(123)
-all_vars <- names(train)
-exclude_vars <- c("Ingtotug", "Ingtotugarr", "Pobre")
-right_hand_vars_exclude <- c("Ingtotug", "Ingtotugarr", "Pobre","Ingpcug")
-include_vars <- setdiff(all_vars, right_hand_vars_exclude)
-target_var <- "Ingpcug"
-formula_str <- Ingpcug ~ noficio_hogar + nmenores + H_Head_Educ_level + narriendo_o_pension + nestudiantes + nocupados + H_Head_Educ_level:edad_trabajar + num_cuartos + num_cuartos:Dominio + num_cuartos:Dominio:propia_pagada
-inc_mod1 <- as.formula(formula_str)
-inc_mod1
-train_inc <- train 
-K <- 10
-nrow(train_inc)/K
-
-train_inc<-train_inc  %>% mutate(fold=c(rep(1,16496),
-                              rep(2,16496),
-                              rep(3,16496),
-                              rep(4,16496),
-                              rep(5,16496),
-                              rep(6,16496),
-                              rep(7,16496),
-                              rep(8,16496),
-                              rep(9,16496),
-                              rep(10,16496)))
-
-fit1<- lm(inc_mod1, data= train_inc  %>% filter(fold!=1))
-yhat1<- predict(fit1,newdata=train_inc  %>% filter(fold==1) )
-
-db_train<-list()
-db_test<-list()
-
-for(i in 1:10){
-  db_train[[i]] <- train_inc %>% filter(fold != i) # Trains
-  db_test[[i]] <- train_inc %>% filter(fold == i) # Tests
->>>>>>> Stashed changes
   
   # Define all variables from the train dataset
   all_vars <- names(train)
@@ -1911,7 +1886,7 @@ for(i in 1:10){
   write.csv(predictSample, "regression_linearRegression.csv", row.names = FALSE)
 
 
-## 4.5 CART's ------------------------------------------------------------------
+## 5.2 Income CART's ------------------------------------------------------------------
 #Do until line 391, then...
 names(train)
 train <- train %>% dplyr::select(-c(Ingtotug,Ingtotugarr))
@@ -1965,6 +1940,19 @@ inTrain <- createDataPartition(y = train$ln_ing,
                                list = FALSE)
 trainbase <- train[inTrain,]
 testbase <- train[-inTrain,]
+
+
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- MLmetrics::F1_Score(y_pred = data$pred,
+                                y_true = data$obs,
+                                positive = lev[1])
+  c(F1 = f1_val)
+}
+fitControlclass <- trainControl(method = "cv", 
+                           number = 5,
+                           classProbs = TRUE, 
+                           summaryFunction = f1, #Aca se llama la summary function 
+                           verboseIter = FALSE)
 
 fitControl<-trainControl(method ="cv",
                          number=5)
@@ -2037,8 +2025,8 @@ grid_xbgoost <- expand.grid(nrounds = c(850),
                             max_depth = c(6), 
                             eta = c(0.05), 
                             gamma = c(0), 
-                            min_child_weight = c(10),
-                            colsample_bytree = c(0.66),
+                            min_child_weight = c(40),
+                            colsample_bytree = c(0.33),
                             subsample = c(0.4))
 
 grid_xbgoost
@@ -2047,14 +2035,15 @@ Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
                         num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
                         propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
                         total_personas + H_Head_mujer + H_Head_afiliadoSalud + 
-                        nmujeres + nocupados + edad_trabajar + perc_mujer + 
+                        nmujeres +  nocupados + edad_trabajar + perc_mujer + 
                         perc_edad_trabajar + perc_menores + perc_uso_cuartos + 
                         Head_mujer_universitaria + Head_hombre_universitaria +
                         Head_mujer_ninguno + Head_hombre_ninguno +
                         Head_mujer_primaria + Head_hombre_primaria +
                         Head_mujer_secundaria + Head_hombre_secundaria +
                         + Head_mujer_media + Head_hombre_media + H_Head_edad2 + 
-                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp,
+                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp+
+                        Dominio,
                       data=trainbase,
                       method = "xgbTree", 
                       trControl = fitControl,
@@ -2062,16 +2051,39 @@ Xgboost_tree <- train(ln_ing ~ perc_ocupados + H_Head_Educ_level + nmenores +
 )
 Xgboost_tree
 
+Xgboost_tree_class <- train(Pobre ~ perc_ocupados + H_Head_Educ_level + nmenores + 
+                        num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
+                        propia_enpago + en_usufructo + num_cuartos + cuartos_usados + 
+                        total_personas + H_Head_mujer + H_Head_afiliadoSalud + 
+                        nmujeres +  nocupados + edad_trabajar + perc_mujer + 
+                        perc_edad_trabajar + perc_menores + perc_uso_cuartos + 
+                        Head_mujer_universitaria + Head_hombre_universitaria +
+                        Head_mujer_ninguno + Head_hombre_ninguno +
+                        Head_mujer_primaria + Head_hombre_primaria +
+                        Head_mujer_secundaria + Head_hombre_secundaria +
+                        + Head_mujer_media + Head_hombre_media + H_Head_edad2 + 
+                        nmenores2 + nocupados2 + Head_mujer_nmenores+ Head_hombre_totalp +
+                          Dominio,
+                      data=trainbase,
+                      method = "xgbTree", 
+                      trControl = fitControlclass,
+                      tuneGrid=grid_xbgoost,
+                      metric = "F1",
+                      maximize = TRUE
+)
+Xgboost_tree_class
+
 ####### IMPROVEMENT THROUGH MODEL SELECTION BY USING BEST SUBSET SELECTION ####
 model_selection <- ln_ing ~ perc_ocupados + H_Head_Educ_level:H_Head_mujer + nmenores:H_Head_mujer + 
   num_cuartos + H_Head_edad + H_Head_ocupado + arrienda + propia_pagada +
   propia_enpago + en_usufructo + cuartos_usados + 
   total_personas:H_Head_mujer + Lp + H_Head_mujer + H_Head_afiliadoSalud + 
   nmujeres + nmenores + nocupados + edad_trabajar + perc_mujer + 
-  perc_edad_trabajar + perc_menores + perc_uso_cuartos
+  perc_edad_trabajar + perc_menores + perc_uso_cuartos + Dominio
 bestsub <- regsubsets(model_selection,
                       data = trainbase,
-                      nvmax = 35)
+                      nvmax = 60,
+                      really.big=T)
 summary(bestsub)
 names(coef(bestsub,25))
 
@@ -2167,10 +2179,65 @@ pov_threshold_estimator<-function(modelo, base,min_thres, max_thres,pace){
   graph_thresh_f1
 }
 
-#Trained CART models: tree_rpart2 (0.487608), ranger (0.583853), Xgboost_tree (0.596281)
+#Trained CART models: tree_rpart2 (0.487608), ranger (0.583853), Xgboost_tree (0.606)
 pov_threshold_estimator(Xgboost_tree,testbase,300000,400000,10000)
-#f1_estimator_cart(Xgboost_tree,testbase,340000) ## XGBoost is my best CART model
-############### END IMPROVEMENT THROUGH INCOME THRESHOLD #############
+
+
+
+############### IMPROVEMENT THROUGH INCOME THRESHOLD FOR CLASS #################
+
+#base_prueba$prueba <- predict(Xgboost_tree_class, newdata = testbase, type="prob")$Yes
+
+
+best_thresh<- function(base,model,...){
+  thresholds <- seq(0.26, 0.4, by = 0.02)
+  f1_scores <- numeric(length(thresholds))
+  max_f1 <- 0
+  best_threshold <- 0
+  for (i in seq_along(thresholds)) {
+    threshold <- thresholds[i]
+    
+    # Store the F1 score for this threshold
+    base$prob_pred<-predict(model, newdata = base, type="prob")$Yes
+    base$pobre_pred <-ifelse(base$prob_pred>=threshold,1,0)
+    #We estimate the F1
+    TP <- sum(base$Pobre == "Yes" & base$pobre_pred == 1)
+    TN <- sum(base$Pobre == "No" & base$pobre_pred == 0 )
+    FP <- sum(base$Pobre == "No" & base$pobre_pred == 1 )
+    FN <- sum(base$Pobre == "Yes" & base$pobre_pred == 0 )
+    
+    recall <- TP / (FN + TP)
+    precision <- TP / (TP + FP)
+    
+    F1 <- 2 * precision * recall / (precision + recall)
+    f1_scores[i] <- F1
+    
+    # Update max_f1 and best_threshold if current F1 score is higher
+    if (f1_scores[i] > max_f1) {
+      max_f1 <- f1_scores[i]
+      best_threshold <- threshold
+    }
+  }
+  
+  # Create a data frame with threshold and F1 score data
+  threshold_f1_data <- data.frame(threshold = thresholds, f1_score = f1_scores)
+  
+  # Plot the relationship between threshold and F1 score
+  graph_thresh_f1 <- ggplot(threshold_f1_data, aes(x = threshold, y = f1_score)) +
+    geom_line() +
+    geom_point() +
+    labs(x = "Threshold", y = "F1 Score", title = "F1 Score vs. Threshold")
+  
+  print(paste("Best Threshold:",best_threshold))
+  print(paste("F1:",round(max_f1,3)))
+  graph_thresh_f1
+}
+##################### END FUNCTION TO OPTIMIZE F1 FOR CART's CLASS #############
+
+#Trained CART class models: Xgboost_tree_class (0.602)
+best_thresh(testbase,Xgboost_tree_class)
+
+
 
 
 ##################### PREDICTION OF BEST CART #################################

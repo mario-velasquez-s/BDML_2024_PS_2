@@ -1347,15 +1347,16 @@ train_control <- trainControl(
 glm_1 <- train(formula(mod1), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
 glm_2 <- train(formula(mod2), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
 glm_3 <- train(formula(mod3), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
-glm_4 <- train(formula(mod4), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
+glm_4 <- train(formula(mod4), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control) # Best model
 
+#Extracting coefficients of the best model
 summary(glm_4)
 model_coefficients <- coef(glm_4$finalModel)
 # Convert to data frame
 coefficients_df <- as.data.frame(model_coefficients, row.names = NULL)
 # Naming the columns appropriately
 names(coefficients_df) <- c("Coefficient")
-write.csv(coefficients_df, "Model_Coefficients_Noint.csv", row.names = TRUE)
+
 
 # Function to Calculate F1 Score and Plot
 # ---------------------------------------

@@ -700,7 +700,7 @@ max_nvars_ing
 
 k_ing <- 10
 n_ing <- nrow (train_ing)
-folds <- sample (rep (1:k, length = n_ing))
+folds <- sample (rep (1:k_ing, length = n_ing))
 
 cv.Scores_back_ing <- matrix(NA, k_ing, max_nvars_ing, dimnames = list(NULL, paste(1:max_nvars_ing)))
 
@@ -715,7 +715,7 @@ predict.regsubsets<- function (object , newdata , id, ...) {
 
 cv.Scores_for_ing <- matrix(NA, k_ing, max_nvars_ing, dimnames = list(NULL, paste(1:max_nvars_ing)))
 
-for (j in 1:k) {
+for (j in 1:k_ing) {
   best_fit <- regsubsets(model_form_ing,
                          data = train_ing[folds != j, ],
                          nvmax = max_nvars_ing, 
@@ -730,7 +730,7 @@ for (j in 1:k) {
 mean.cv.Scores_for_ing <- apply (cv.Scores_for_ing , 2, mean)
 mean.cv.Scores_for_ing
 which.min (mean.cv.Scores_for_ing)
-plot (mean.cv.Scores_for_ing , type = "b")
+plot (mean.cv.Scores_for_ing , type = "b", ylab = "MSE", xlab="Número de variables")
 
 #Forward best subset selection with F1
 
@@ -1345,9 +1345,17 @@ train_control <- trainControl(
 # ------------
 
 glm_1 <- train(formula(mod1), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
-glm_2 <- train(formula(mod2), data = train, method = "glm", family = "binomial", trControl = train_control)
-glm_3 <- train(formula(mod3), data = train, method = "glm", family = "binomial", trControl = train_control)
-glm_4 <- train(formula(mod4), data = train, method = "glm", family = "binomial", trControl = train_control)
+glm_2 <- train(formula(mod2), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
+glm_3 <- train(formula(mod3), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
+glm_4 <- train(formula(mod4), data = train_pobre_numeric, method = "glm", family = "binomial", trControl = train_control)
+
+summary(glm_4)
+model_coefficients <- coef(glm_4$finalModel)
+# Convert to data frame
+coefficients_df <- as.data.frame(model_coefficients, row.names = NULL)
+# Naming the columns appropriately
+names(coefficients_df) <- c("Coefficient")
+write.csv(coefficients_df, "Model_Coefficients_Noint.csv", row.names = TRUE)
 
 # Function to Calculate F1 Score and Plot
 # ---------------------------------------
@@ -1771,7 +1779,7 @@ aucval_rf
 
 
 
-#3: INCOME REGRESSION APPROACH -------------------------------------------------
+#5.1: Income Linear Regression -------------------------------------------------
 
   train_pobre_numeric <- dplyr::select(train, -Ingtotug, -Ingtotugarr, -Lp)
   train_pobre_numeric <- train_pobre_numeric %>%
@@ -1874,7 +1882,7 @@ aucval_rf
   write.csv(predictSample, "regression_linearRegression.csv", row.names = FALSE)
 
 
-## 4.5 CART's ------------------------------------------------------------------
+## 5.2 Income CART's ------------------------------------------------------------------
 #Do until line 391, then...
 names(train)
 train <- train %>% dplyr::select(-c(Ingtotug,Ingtotugarr))

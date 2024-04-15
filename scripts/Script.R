@@ -2424,7 +2424,7 @@ write.csv(predictSample,"regression_mix_linearreg_xgboost.csv", row.names = FALS
 
 
 
-## 4.6 Elasticnet ------------------------------------------------------------------
+## 4.6 Elasticnet - Linear regression ------------------------------------------------------------------
 #############################################
 
 set.seed(21032024)
@@ -2550,14 +2550,14 @@ selected_variables <- c("Ingpcug",
 
 
 # Probamos la función
-elastic_net_f1(train, selected_variables, 500000, 4, 0.5)
+elastic_net_f1(train, selected_variables, 390000, 4, 0.5)
 
 
 ###############################
 
 alpha <- 0.8
 lambda <- 1
-corte <- 800000
+corte <- 390000
 
 selected_variables_test <- c("num_cuartos",
                              "cuartos_usados",          

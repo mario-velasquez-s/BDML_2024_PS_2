@@ -42,7 +42,7 @@ p_load(rio, # import/export data
        Hmisc,
       labelled)
 
-library("labelled")
+
 
 
 # 1: Initial Data Manipulation -----------------------------------------------
@@ -535,22 +535,16 @@ table_ttest <-
     by = Pobre, # split table by group
     missing = "no" # don't list missing data separately
   )  %>%
-  add_p() %>% # test for a difference between groups
+  add_p()# test for a difference between groups
   modify_header(label = "**Variable**") %>% # update the column header
   bold_labels() %>%
   as_gt() %>%
   gt::as_latex()
 
-
+# Log transformation for income
 train$ln_Ingtotug <- log(train$Ingtotug)
 
-ggplot(data = train , 
-       mapping = aes(x =  H_Head_edad, y = ln_Ingtotug , group=as.factor(H_Head_mujer) , color=as.factor(H_Head_mujer))) +
-  geom_point()
-
-ggplot(data=train) + 
-  geom_histogram(mapping = aes(x=ln_Ingtotug , group=as.factor(H_Head_mujer) , fill=as.factor(H_Head_mujer)))
-
+# Creation of density dsitribution graph of income
 mu <- ddply(train, "H_Head_mujer", summarise, promedio=log(mean(Ingtotug)))
 
 ggplot(train, aes(x=ln_Ingtotug, color=H_Head_mujer)) +
@@ -562,6 +556,7 @@ p<-ggplot(train, aes(x=ln_Ingtotug, color=H_Head_mujer)) +
   geom_density()+
   geom_vline(data=mu, aes(xintercept=promedio, color=H_Head_mujer),
              linetype="dashed") +
+  geom_vline(xintercept=12.57722, color= "Red", label = "Linea de pobreza")+
   scale_fill_discrete(name = "Sexo jefe del hogar", labels = c("Hombre", "Mujer"))+
   labs(x = "Log. Ingresos totales", y = "Densidad")
 
